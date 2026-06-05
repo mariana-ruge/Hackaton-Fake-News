@@ -19,11 +19,11 @@
 - [x] **0.1** Crear `LICENSE` (Apache 2.0).
 - [x] **0.2** Crear `PLAN.md` (arquitectura).
 - [x] **0.3** Mover todo a la raíz `Hackaton-Fake-News`.
-- [ ] **0.4** Crear estructura de carpetas (sección 6 de `PLAN.md`).
-- [ ] **0.5** `README.md` — qué es, arquitectura, cómo correr local, cómo desplegar.
-- [ ] **0.6** `.gitignore` — Python, `.env`, artefactos de build, `__pycache__`.
-- [ ] **0.7** `.env.example` — claves vacías: `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `BRIGHTDATA_API_KEY`, `ELASTIC_CLOUD_ID`, `ELASTIC_API_KEY`.
-- [ ] **0.8** `requirements.txt` — `google-adk`, `google-genai`, `elasticsearch`, `streamlit`, `python-dotenv`, `pydantic`, `pytest`.
+- [x] **0.4** Crear estructura de carpetas (sección 6 de `PLAN.md`).
+- [x] **0.5** `README.md` — qué es, arquitectura, cómo correr local, cómo desplegar.
+- [x] **0.6** `.gitignore` — Python, `.env`, artefactos de build, `__pycache__`.
+- [x] **0.7** `.env.example` — claves vacías: `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `BRIGHTDATA_API_KEY`, `ELASTIC_CLOUD_ID`, `ELASTIC_API_KEY`.
+- [x] **0.8** `requirements.txt` — `google-adk`, `google-genai`, `elasticsearch`, `streamlit`, `python-dotenv`, `pydantic`, `pytest`.
 - [ ] **0.9** `git init` + primer commit + crear repo público en GitHub.
 
 **Criterio de hecho:** `pip install -r requirements.txt` corre limpio; el repo muestra "Apache-2.0" en *About*.

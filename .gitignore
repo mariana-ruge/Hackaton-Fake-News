@@ -1,0 +1,53 @@
+# ─── Secretos / entorno ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+service-account*.json
+gcp-credentials*.json
+
+# ─── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+
+# ─── Entornos virtuales ───────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Testing / coverage ───────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Streamlit ────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ─── IDE / editor ─────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Sistema operativo ────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Datos locales / artefactos ───────────────────────
+*.log
+data/local/
+tmp/
