@@ -24,9 +24,73 @@
 - [x] **0.6** `.gitignore` — Python, `.env`, artefactos de build, `__pycache__`.
 - [x] **0.7** `.env.example` — claves vacías: `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `BRIGHTDATA_API_KEY`, `ELASTIC_CLOUD_ID`, `ELASTIC_API_KEY`.
 - [x] **0.8** `requirements.txt` — `google-adk`, `google-genai`, `elasticsearch`, `streamlit`, `python-dotenv`, `pydantic`, `pytest`.
-- [ ] **0.9** `git init` + primer commit + crear repo público en GitHub.
+- [x] **0.9** `git init` + primer commit + crear repo público en GitHub.
 
 **Criterio de hecho:** `pip install -r requirements.txt` corre limpio; el repo muestra "Apache-2.0" en *About*.
+
+---
+
+## FASE 0.5 — Setup de Google Cloud
+> Objetivo: preparar el **proyecto y la infraestructura base** de Google Cloud.
+> Nota: aquí NO se "crea un agente" en una consola. Con ADK el agente es código; esto solo prepara el terreno. El agente se despliega a Agent Engine en la Fase 6.
+
+### Requisitos previos
+- Cuenta de Google Cloud con **créditos del reto activados**.
+- **gcloud CLI** instalado ([guía oficial](https://cloud.google.com/sdk/docs/install)). Verifica con `gcloud version`.
+
+### Pasos
+
+- [ ] **0.5.1** Crear o seleccionar el proyecto.
+  ```bash
+  # Crear (elige un ID único, minúsculas/guiones)
+  gcloud projects create veritas-agent-hackaton --name="VeritasAgent"
+  # O seleccionar uno existente
+  gcloud config set project veritas-agent-hackaton
+  ```
+
+- [ ] **0.5.2** Vincular la cuenta de facturación (necesaria aunque uses créditos).
+  ```bash
+  gcloud billing accounts list
+  gcloud billing projects link veritas-agent-hackaton --billing-account=XXXXXX-XXXXXX-XXXXXX
+  ```
+
+- [ ] **0.5.3** Habilitar las APIs necesarias.
+  ```bash
+  gcloud services enable \
+    aiplatform.googleapis.com \
+    run.googleapis.com \
+    secretmanager.googleapis.com \
+    cloudbuild.googleapis.com \
+    artifactregistry.googleapis.com
+  ```
+  | API | Para qué |
+  |---|---|
+  | `aiplatform` | Gemini + Vertex AI Agent Engine |
+  | `run` | Frontend Streamlit (Fase 6) |
+  | `secretmanager` | Guardar claves de Bright Data / Elastic |
+  | `cloudbuild` + `artifactregistry` | CI/CD y la imagen Docker |
+
+- [ ] **0.5.4** Autenticación local para que el código use Vertex AI.
+  ```bash
+  gcloud auth login
+  gcloud auth application-default login
+  ```
+
+- [ ] **0.5.5** Definir región por defecto.
+  ```bash
+  gcloud config set ai/region us-central1
+  ```
+
+- [ ] **0.5.6** (Recomendado) Service Account para despliegues.
+  ```bash
+  gcloud iam service-accounts create veritas-agent \
+    --display-name="VeritasAgent Runtime"
+  # Roles mínimos: Vertex AI User + Secret Manager Accessor
+  ```
+
+- [ ] **0.5.7** Rellenar `.env` con `GOOGLE_CLOUD_PROJECT` y `GOOGLE_CLOUD_LOCATION`.
+
+**Criterio de hecho:** `gcloud config list` muestra el proyecto y la región correctos, y `gcloud services list --enabled` lista las 5 APIs.
 
 ---
 
