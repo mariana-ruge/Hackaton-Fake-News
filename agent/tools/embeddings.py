@@ -1,37 +1,48 @@
-"""Async embedding helper using Google Generative AI (text-embedding-004)."""
+"""Async embedding helper usando Vertex AI (text-embedding-004).
+
+La organización bloquea las API keys → autenticamos vía ADC + Vertex AI.
+Para correr localmente asegúrate de haber ejecutado:
+    gcloud auth application-default login
+    gcloud auth application-default set-quota-project <project-id>
+
+Cache LRU en memoria + retry exponencial ante throttling.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import os
 from collections import OrderedDict
 
 import numpy as np
-import google.generativeai as genai
 from google.api_core import exceptions as gcp_exceptions
+from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
+logger = logging.getLogger(__name__)
 
-_MODEL = "models/text-embedding-004"
+_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
 _DIMENSION = 768
 _MAX_CACHE = 100
 _MAX_RETRIES = 3
+_TASK_TYPE = "SEMANTIC_SIMILARITY"
 
 _cache: "OrderedDict[str, list[float]]" = OrderedDict()
-_configured = False
+_model: TextEmbeddingModel | None = None
 _lock = asyncio.Lock()
 
 
-def _configure() -> None:
-    """Configure the genai SDK with the API key from the environment."""
-    global _configured
-    if _configured:
-        return
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY no está definida en el entorno.")
-    genai.configure(api_key=api_key)
-    _configured = True
+def _get_model() -> TextEmbeddingModel:
+    """Lazy-init del modelo de embeddings de Vertex.
+
+    Vertex AI ya debe estar inicializado (lo hace `main.py` con
+    `vertexai.init(project=..., location=...)`).
+    """
+    global _model
+    if _model is None:
+        _model = TextEmbeddingModel.from_pretrained(_MODEL_NAME)
+    return _model
 
 
 def _hash_text(text: str) -> str:
@@ -61,34 +72,34 @@ def _normalize(vec: list[float]) -> list[float]:
 
 
 async def get_embedding(text: str) -> list[float]:
-    """Return a 768-dim L2-normalized embedding for `text`.
+    """Devuelve un embedding de 768 dimensiones L2-normalizado para `text`.
 
-    - Modelo: text-embedding-004
+    - Modelo: text-embedding-004 (Vertex AI)
     - Cache LRU en memoria (últimos 100 textos por hash SHA-256)
-    - Retry exponencial (2^n s) en errores de cuota/recursos
+    - Retry exponencial (2^n s) ante errores de cuota / disponibilidad.
     """
     if not text or not text.strip():
         raise ValueError("`text` no puede estar vacío.")
-
-    _configure()
 
     key = _hash_text(text)
     cached = _cache_get(key)
     if cached is not None:
         return cached
 
+    model = _get_model()
+    inputs = [TextEmbeddingInput(text=text, task_type=_TASK_TYPE)]
+
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES):
         try:
-            # google-generativeai's embed_content es síncrono; lo movemos
-            # a un thread para no bloquear el event loop.
+            # `get_embeddings` es síncrono → lo movemos a un thread para
+            # no bloquear el event loop.
             response = await asyncio.to_thread(
-                genai.embed_content,
-                model=_MODEL,
-                content=text,
+                model.get_embeddings,
+                inputs,
                 output_dimensionality=_DIMENSION,
             )
-            raw = response["embedding"] if isinstance(response, dict) else response.embedding
+            raw = response[0].values
             vector = _normalize(list(raw))
 
             async with _lock:

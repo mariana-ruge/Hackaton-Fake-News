@@ -23,7 +23,10 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 | Orquestación | **Híbrido: ADK (lógica) + Vertex AI Agent Engine (despliegue gestionado)** |
 | Licencia | **Apache 2.0** |
 | Google Cloud | **Cuenta con créditos activos: sí** |
-| MCPs de partner | **Bright Data (scraping/evidencia) + Elastic (triage + memoria semántica)** |
+| **Track partner del reto** | 🟢 **Elastic** (triage semántico + memoria) |
+| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · **Arize Phoenix MCP** (bonus partner: datasets + trazas) |
+| Persistencia | **Doble capa** → Firestore (log operativo/auditoría) + Elastic (búsqueda semántica + triage) |
+| Dominio | Fake news financieras (desinformación económica, Ponzi, pseudo-traders) |
 
 ---
 
@@ -37,31 +40,51 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTPS
 ┌───────────────────────────▼──────────────────────────────────┐
+│  Backend: FastAPI (Cloud Run)                                │
+│  Endpoints: /analizar  /scrape  /health                      │
+└───────────────────────────┬──────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────┐
 │  Agente: ADK desplegado en Vertex AI Agent Engine            │
-│  Modelo de razonamiento: Gemini 2.5                          │
+│  Modelo de razonamiento: Gemini 2.5 Flash                    │
 │                                                              │
-│   [0] Triage (Elastic)  ──► early-exit si match fuerte       │
-│   [1] Extractor (Bright Data)                                │
+│   [0] Triage (Elastic MCP) ──► early-exit si match fuerte    │
+│   [1] Extractor (Bright Data MCP)                            │
 │   [2] Claim Parser (Gemini)                                  │
-│   [3] Source Checker                                          │
-│   [4] Cross-Reference (Bright Data)                          │
+│   [3] Source Checker (lista curada)                          │
+│   [4] Cross-Reference (Bright Data MCP)                      │
 │   [5] Linguistic Analysis (Gemini)                           │
-│   [6] Verdict (Gemini)                                        │
-│   [7] Persist / Index (Elastic)                              │
-└───────┬───────────────────────────────────┬──────────────────┘
-        │                                   │
-┌───────▼─────────┐                 ┌────────▼─────────┐
-│  Bright Data MCP │                 │   Elastic MCP    │
-│  scraping +      │                 │  búsqueda híbrida │
-│  búsqueda web    │                 │  (kNN + BM25) +   │
-│  (Google News,   │                 │  almacén de       │
-│  fact-checkers,  │                 │  verificaciones   │
-│  Reuters/AP)     │                 │                   │
-└──────────────────┘                 └───────────────────┘
+│   [6] Verdict (Gemini + Phoenix MCP: consulta datasets)      │
+│   [7] Persist:  Firestore (log)  +  Elastic (index)          │
+└───┬────────────┬───────────────┬───────────────┬─────────────┘
+    │            │               │               │
+┌───▼────────┐ ┌─▼─────────────┐ ┌▼─────────────┐ ┌▼──────────┐
+│ Bright Data│ │ Elastic MCP   │ │ Phoenix MCP  │ │ Firestore │
+│ MCP        │ │ 🟢 TRACK      │ │ bonus partner│ │ log audit │
+│ scraping + │ │ kNN+BM25      │ │ datasets +   │ │ rápido    │
+│ búsqueda   │ │ memoria       │ │ trazas       │ │ por caso  │
+└────────────┘ └───────────────┘ └──────────────┘ └───────────┘
 ```
 
-### Por qué Elastic sustituye a MongoDB
-Elastic cubre **dos roles a la vez**: (a) búsqueda vectorial/híbrida para el triage y la recuperación de evidencia, y (b) almacén persistente del historial de verificaciones. Una sola pieza, dos superpoderes → menos infraestructura y un partner mejor aprovechado.
+### Estrategia de doble capa de persistencia (✨ decisión Opción B)
+
+| Capa | Tecnología | Rol | Cuándo escribe |
+|---|---|---|---|
+| **Operativa / auditoría** | **Firestore** | Log inmutable de cada `/analizar` y `/scrape` (input + output + metadatos) | Cada request al backend |
+| **Memoria semántica** | **Elastic** | Índice `verified_claims` con `dense_vector` 768 dims para triage y early-exit | Solo cuando el paso [7] emite un veredicto consolidado |
+
+**Por qué dos capas:**
+- **Firestore** es rapidísimo para escribir y leer por `doc_id` — perfecto para mostrar el historial al usuario y para auditoría.
+- **Elastic** es donde vive la inteligencia: búsqueda híbrida, embeddings, scoring. **Es el track partner del reto** y el diferenciador del agente.
+- Cada uno hace lo que mejor sabe; no se duplica información (Firestore guarda *requests*, Elastic guarda *veredictos consolidados*).
+
+### Track partner + integraciones adicionales
+
+| MCP | Rol | Estado en el reto |
+|---|---|---|
+| **Elastic MCP** | Triage + memoria semántica (paso [0] y [7]) | 🟢 **Track oficial del reto** |
+| **Bright Data MCP** | Scraping y búsqueda en fact-checkers (paso [1] y [4]) | Complemento (no es partner del reto, pero útil) |
+| **Arize Phoenix MCP** | Consulta de prompts/datasets/trazas guardadas (paso [6]) | 🟢 Bonus partner (Phoenix ya envía telemetría) |
 
 ---
 

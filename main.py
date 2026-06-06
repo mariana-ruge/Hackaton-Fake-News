@@ -1,18 +1,39 @@
-from fastapi.responses import JSONResponse
-import os
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from dotenv import load_dotenv
+"""
+VeritasAgent — API del agente verificador de noticias financieras.
 
-load_dotenv(override=True)  # Carga las variables del archivo .env y prioriza sus valores
+Arranca con:
+    uvicorn main:app --host 0.0.0.0 --port 8000
 
-# --- Workaround: silencia el AttributeError cosmético de google-genai al cerrar
-# clientes BaseApiClient que nunca instanciaron su httpx async.
+Variables de entorno requeridas (ver .env.example):
+    GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, MODEL_NAME,
+    BRIGHT_DATA_WS_URL, API_KEY_PHOENIX
+    (opcionales) BRAVE_API_KEY
+"""
+
+from __future__ import annotations
+
 import asyncio
 import logging
+import os
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+load_dotenv(override=True)  # carga el .env (sus valores tienen prioridad)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("veritas")
+logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 
 def _silence_genai_aclose(loop, context):
+    """Silencia el AttributeError cosmético de google-genai al cerrar clientes."""
     exc = context.get("exception")
     if isinstance(exc, AttributeError) and "_async_httpx_client" in str(exc):
         return
@@ -23,57 +44,75 @@ try:
     asyncio.get_event_loop().set_exception_handler(_silence_genai_aclose)
 except RuntimeError:
     pass
-logging.getLogger("asyncio").setLevel(logging.ERROR)
 
-# --- Importaciones de Telemetría (Arize Phoenix) ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Telemetría (Arize Phoenix)
+# ──────────────────────────────────────────────────────────────────────────────
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
-# --- Importaciones de Google ADK ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Google ADK
+# ──────────────────────────────────────────────────────────────────────────────
 from google.adk.agents import LlmAgent
-from google.adk.tools import agent_tool
+from google.adk.tools import agent_tool, url_context
 from google.adk.tools.google_search_tool import GoogleSearchTool
-from google.adk.tools import url_context
-from google.adk.runners import Runner
-from google.genai import types as genai_types
+from google.adk.runners import InMemoryRunner
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
+from google.genai import types as genai_types
 from mcp import StdioServerParameters
 
-# --- Inicialización Vertex AI ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Configuración: variables unificadas (ver .env.example)
+# ──────────────────────────────────────────────────────────────────────────────
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
+
+if not GOOGLE_CLOUD_PROJECT:
+    raise RuntimeError(
+        "GOOGLE_CLOUD_PROJECT no está definida. Crea tu .env a partir de .env.example "
+        "y rellena el ID del proyecto de Google Cloud."
+    )
+
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+os.environ["GOOGLE_CLOUD_PROJECT"] = GOOGLE_CLOUD_PROJECT
+os.environ["GOOGLE_CLOUD_LOCATION"] = GOOGLE_CLOUD_LOCATION
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Inicialización de Vertex AI (autenticación vía ADC)
+# ──────────────────────────────────────────────────────────────────────────────
 import vertexai
 from google.cloud import aiplatform
 
-VERTEX_PROJECT = os.getenv("PROJECT_ID", "hackaton-498600")
-VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-os.environ["GOOGLE_CLOUD_PROJECT"] = VERTEX_PROJECT
-os.environ["GOOGLE_CLOUD_LOCATION"] = VERTEX_LOCATION
-vertexai.init(project=VERTEX_PROJECT, location=VERTEX_LOCATION)
+vertexai.init(project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)
 
 VERTEX_AI_CONNECTED = True
 try:
     model_service_client = aiplatform.gapic.ModelServiceClient(
-        client_options={"api_endpoint": f"{VERTEX_LOCATION}-aiplatform.googleapis.com"}
+        client_options={"api_endpoint": f"{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com"}
     )
-    parent = f"projects/{VERTEX_PROJECT}/locations/{VERTEX_LOCATION}"
+    parent = f"projects/{GOOGLE_CLOUD_PROJECT}/locations/{GOOGLE_CLOUD_LOCATION}"
     next(iter(model_service_client.list_models(parent=parent)), None)
 except Exception as exc:  # noqa: BLE001
-    print(
-        "[WARN] Vertex AI ADC no disponible o sin permisos. "
-        f"Proyecto={VERTEX_PROJECT}, región={VERTEX_LOCATION}. Error: {exc}"
+    logger.warning(
+        "Vertex AI ADC no disponible o sin permisos. Proyecto=%s, región=%s. Error: %s",
+        GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, exc,
     )
     VERTEX_AI_CONNECTED = False
 
-GEMINI_MODEL = os.getenv("MODEL_ID") or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-
-# --- MCP, Scraping y Persistencia ---
+# ──────────────────────────────────────────────────────────────────────────────
+# MCP toolsets (Brave opcional, Fetch obligatorio)
+# ──────────────────────────────────────────────────────────────────────────────
 from google.cloud import firestore
 from google.api_core import exceptions as gcp_exceptions
 
 BRAVE_API_KEY = os.getenv("BRAVE_API_KEY")
+import sys as _sys
+
 if BRAVE_API_KEY:
     brave_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
@@ -86,58 +125,58 @@ if BRAVE_API_KEY:
         )
     )
 else:
-    print("[WARN] BRAVE_API_KEY no está definida. Brave Search MCP quedará desactivado.")
+    logger.warning("BRAVE_API_KEY no está definida. Brave Search MCP quedará desactivado.")
     brave_toolset = None
 
 fetch_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
-            command=os.sys.executable,
+            command=_sys.executable,
             args=["-m", "mcp_server_fetch"],
         ),
         timeout=30.0,
     )
 )
 
-# ==========================================
-# 1. CONFIGURACIÓN DE OBSERVABILIDAD (ARIZE)
-# ==========================================
-# Capturamos la API Key desde las variables de entorno (Cloud Run lo inyectará aquí)
+# ──────────────────────────────────────────────────────────────────────────────
+# Observabilidad (Arize Phoenix)
+# ──────────────────────────────────────────────────────────────────────────────
 PHOENIX_API_KEY = os.getenv("API_KEY_PHOENIX")
-os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={PHOENIX_API_KEY}"
-os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com/v1/traces"
+PHOENIX_ENABLED = bool(PHOENIX_API_KEY)
 
-# Inicializamos el Tracer para enviar las trazas a Phoenix
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(
-    SimpleSpanProcessor(OTLPSpanExporter(endpoint=os.environ["PHOENIX_COLLECTOR_ENDPOINT"]))
-)
-trace.set_tracer_provider(tracer_provider)
+if PHOENIX_ENABLED:
+    os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={PHOENIX_API_KEY}"
+    os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com/v1/traces"
 
-# Instrumentamos el ADK para que capture automáticamente los llamados y herramientas de Gemini
-GoogleADKInstrumentor().instrument()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(
+        SimpleSpanProcessor(OTLPSpanExporter(endpoint=os.environ["PHOENIX_COLLECTOR_ENDPOINT"]))
+    )
+    trace.set_tracer_provider(tracer_provider)
+    GoogleADKInstrumentor().instrument()
+else:
+    logger.warning("API_KEY_PHOENIX no definida. Telemetría desactivada.")
 
 
-# ==========================================
-# 1.b CONFIGURACIÓN DE FIRESTORE
-# ==========================================
-PROJECT_ID = os.getenv("PROJECT_ID", "hackaton-498600")
+# ──────────────────────────────────────────────────────────────────────────────
+# Firestore (persistencia de análisis y scrapes)
+# ──────────────────────────────────────────────────────────────────────────────
 FIRESTORE_COLLECTION_ANALISIS = os.getenv("FIRESTORE_COLLECTION_ANALISIS", "analisis_noticias")
 FIRESTORE_COLLECTION_SCRAPES = os.getenv("FIRESTORE_COLLECTION_SCRAPES", "verificaciones")
 
 try:
-    db = firestore.Client(project=PROJECT_ID)
+    db = firestore.Client(project=GOOGLE_CLOUD_PROJECT)
 except Exception as exc:  # noqa: BLE001
-    print(f"[WARN] No se pudo inicializar Firestore: {exc}")
+    logger.warning("No se pudo inicializar Firestore: %s", exc)
     db = None
 
 
-# ==========================================
-# 2. DEFINICIÓN DE AGENTES (Google ADK)
-# ==========================================
+# ──────────────────────────────────────────────────────────────────────────────
+# Definición de agentes (Google ADK)
+# ──────────────────────────────────────────────────────────────────────────────
 verificar_fake_news_google_search_agent = LlmAgent(
     name='Verificar_Fake_News_google_search_agent',
-    model=GEMINI_MODEL,
+    model=MODEL_NAME,
     description='Agent specialized in performing Google searches.',
     sub_agents=[],
     instruction='Use the GoogleSearchTool to find information on the web.',
@@ -146,7 +185,7 @@ verificar_fake_news_google_search_agent = LlmAgent(
 
 verificar_fake_news_url_context_agent = LlmAgent(
     name='Verificar_Fake_News_url_context_agent',
-    model=GEMINI_MODEL,
+    model=MODEL_NAME,
     description='Agent specialized in fetching content from URLs.',
     sub_agents=[],
     instruction='Use the UrlContextTool to retrieve content from provided URLs.',
@@ -170,8 +209,12 @@ Tono: Objetivo, analítico, educativo y amigable. No emitas juicios de valor pro
 
 root_agent = LlmAgent(
     name='Verificar_Fake_News',
-    model=GEMINI_MODEL,
-    description='Este agente busca contrastar un mundo en redes sociales alarmista y reactivo y convertirlo en uno más analítico y confiable, enfocado en economía global y prevención de fraudes.',
+    model=MODEL_NAME,
+    description=(
+        'Agente que contrasta narrativas financieras alarmistas y promesas de inversión '
+        'sospechosas en redes sociales con fuentes regulado-rigurosas, y detecta '
+        'esquemas Ponzi/piramidales y pseudo-traders.'
+    ),
     sub_agents=[],
     instruction=prompt_principal,
     tools=(
@@ -185,21 +228,39 @@ root_agent = LlmAgent(
 )
 
 
-# ==========================================
-# 3. CONFIGURACIÓN DEL RUNNER (El Motor)
-# ==========================================
-from google.adk.runners import InMemoryRunner
-# El motor instanciará lo que necesite internamente
+# ──────────────────────────────────────────────────────────────────────────────
+# Runner
+# ──────────────────────────────────────────────────────────────────────────────
 runner = InMemoryRunner(agent=root_agent)
 
 
-# ==========================================
-# 4. CONFIGURACIÓN DE LA API (FastAPI)
-# ==========================================
+# ──────────────────────────────────────────────────────────────────────────────
+# FastAPI (lifespan moderno reemplaza @app.on_event)
+# ──────────────────────────────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: nada extra por ahora (la inicialización ocurre arriba)
+    yield
+    # Shutdown: cerrar limpiamente los MCP toolsets
+    if brave_toolset is not None:
+        try:
+            await brave_toolset.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error cerrando brave_toolset: %s", exc)
+    try:
+        await fetch_toolset.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Error cerrando fetch_toolset: %s", exc)
+
+
 app = FastAPI(
-    title="Verificar Fake News API",
-    description="API del agente financiero para la Hackathon usando Google ADK y Arize Phoenix",
-    version="1.0.0"
+    title="VeritasAgent API",
+    description=(
+        "Agente verificador de noticias financieras (Google ADK + Vertex AI). "
+        "Detecta desinformación económica, estafas Ponzi y promesas de inversión sospechosas."
+    ),
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 class NewsQuery(BaseModel):
@@ -344,21 +405,16 @@ async def scrape_url(request: ScrapeRequest):
         raise HTTPException(status_code=500, detail=f"Error al obtener la URL con Fetch MCP: {str(e)}")
 
 
-@app.on_event("shutdown")
-async def shutdown_mcp_toolsets():
-    if brave_toolset is not None:
-        await brave_toolset.close()
-    await fetch_toolset.close()
-
-
 @app.get("/health", summary="Verifica el estado del servidor y la telemetría")
 def health_check():
     return {
         "status": "online",
-        "agent": "Verificar_Fake_News",
-        "telemetry": "Arize Phoenix Connected",
+        "agent": root_agent.name,
+        "model": MODEL_NAME,
+        "telemetry": "connected" if PHOENIX_ENABLED else "disabled",
         "firestore": "connected" if db is not None else "unavailable",
         "vertex_ai": "connected" if VERTEX_AI_CONNECTED else "unavailable",
         "brave_mcp": "configured" if brave_toolset is not None else "missing_api_key",
-        "project_id": PROJECT_ID,
+        "project_id": GOOGLE_CLOUD_PROJECT,
+        "location": GOOGLE_CLOUD_LOCATION,
     }

@@ -2,13 +2,13 @@
 
 # 🛡️ VeritasAgent
 
-### Agente multi-paso de verificación de noticias (fake news) con evidencia rastreable
+### Agente verificador de **noticias financieras** y detector de fraudes de inversión
 
-**Powered by Gemini · Google Cloud (ADK + Vertex AI Agent Engine) · Bright Data MCP · Elastic MCP**
+**Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Arize Phoenix · Firestore · Bright Data**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Gemini](https://img.shields.io/badge/Gemini-2.5-8E75B2.svg)](https://ai.google.dev/)
+[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-8E75B2.svg)](https://ai.google.dev/)
 
 [Demo](#-demo) · [Arquitectura](#-arquitectura) · [Cómo funciona](#-cómo-funciona) · [Instalación](#-instalación) · [Roadmap](./IMPLEMENTATION.md)
 
@@ -18,19 +18,17 @@
 
 ## 📰 El problema
 
-Las noticias falsas se propagan **6 veces más rápido** que las verdaderas. Los verificadores humanos no dan abasto, y las herramientas existentes suelen:
+La desinformación financiera se propaga como pólvora: titulares alarmistas sobre el mercado, promesas de rentabilidades imposibles, "gurús" de Telegram, esquemas Ponzi disfrazados de oportunidades únicas. Las víctimas pierden dinero real porque:
 
-- Limitarse a responder *"verdadero/falso"* sin mostrar **por qué**.
-- Cubrir mal el contenido en **español / LatAm**.
-- Re-analizar el mismo bulo viral una y otra vez, gastando tiempo y recursos.
+- Los titulares económicos son **fáciles de manipular** y difíciles de contrastar.
+- Las **promesas de inversión sospechosas** se distribuyen masivamente por redes sociales sin filtros.
+- Los **fact-checkers tradicionales** rara vez cubren contenido económico-financiero en español.
 
 ## 💡 La solución
 
-**VeritasAgent** no es un chatbot. Es un **agente autónomo multi-paso** que recibe una **URL, un titular o una afirmación**, ejecuta un flujo de investigación, y devuelve un **veredicto con nivel de confianza y evidencia enlazada**.
+**VeritasAgent** es un agente que recibe **un titular económico, una promesa de inversión, una URL o una publicación sospechosa** y devuelve un **análisis estructurado con contexto, riesgo y evidencia**, citando fuentes financieras rigurosas.
 
-Su diferenciador clave es una **fase de triage con búsqueda semántica (Elastic)**: antes de gastar recursos, comprueba si el bulo **ya fue verificado** y, si hay coincidencia fuerte, responde al instante (*early-exit*).
-
-> ⚖️ **Principio rector:** el agente **nunca opina** — siempre cita fuentes. Si no hay evidencia, lo dice ("Sin evidencia suficiente"), nunca inventa un veredicto absoluto.
+> ⚖️ **Principio rector:** el agente **nunca opina** ni da consejos de inversión. Cita fuentes, identifica banderas rojas de estafa, y avisa al usuario cuando algo huele a Ponzi o pseudo-trader.
 
 ---
 
@@ -38,12 +36,12 @@ Su diferenciador clave es una **fase de triage con búsqueda semántica (Elastic
 
 | | |
 |---|---|
-| 🧠 **Multi-paso real** | El agente planifica y decide cuándo profundizar (no es un único prompt) |
-| ⚡ **Triage con early-exit** | Búsqueda semántica en Elastic evita re-analizar bulos ya verificados (<2 s) |
-| 🌎 **Bilingüe ES/EN** | Cubre fact-checkers de LatAm, poco atendidos en inglés |
-| 🔍 **Evidencia rastreable** | Cada veredicto incluye enlaces a las fuentes que lo apoyan o contradicen |
-| 🙋 **Human-in-the-loop** | El usuario puede pedir "explica por qué" o re-verificar ignorando la caché |
-| 📈 **Memoria que aprende** | Cada verificación alimenta el triage futuro |
+| 💰 **Foco financiero** | Especializado en desinformación económica, criptos, inversiones y fraudes |
+| 🚨 **Detección de fraude** | Banderas rojas de Ponzi, pirámides y "pseudo-traders" (rentabilidades garantizadas, FOMO, reclutamiento) |
+| 📊 **Métrica de riesgo** | Etiqueta cada caso con incertidumbre Alta / Media / Baja |
+| ⏳ **Línea de tiempo** | Reconstruye cómo evolucionó la narrativa en titulares serios |
+| 🌍 **Aclaración geopolítica** | Nota de neutralidad obligatoria cuando la noticia involucra gobiernos o líderes |
+| 📈 **Observabilidad** | Trazas en Arize Phoenix de cada llamada del agente |
 
 ---
 
@@ -51,79 +49,53 @@ Su diferenciador clave es una **fase de triage con búsqueda semántica (Elastic
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Frontend · Streamlit (Cloud Run)                            │
-│  Input: URL / titular / claim   |   Idioma: ES / EN          │
-│  Muestra pasos en vivo + veredicto + evidencia               │
+│  Frontend · Streamlit (chat)                                 │
+│  Input: titular / promesa / URL / publicación sospechosa     │
+│  Render del análisis + estado de salud (Vertex AI/Firestore) │
 └───────────────────────────┬──────────────────────────────────┘
                             │ HTTPS
 ┌───────────────────────────▼──────────────────────────────────┐
-│  Agente · ADK en Vertex AI Agent Engine · Gemini 2.5         │
-│                                                              │
-│   [0] Triage (Elastic)  ──► early-exit si match fuerte       │
-│   [1] Extractor (Bright Data)                                │
-│   [2] Claim Parser (Gemini)                                  │
-│   [3] Source Checker                                          │
-│   [4] Cross-Reference (Bright Data)                          │
-│   [5] Linguistic Analysis (Gemini)                           │
-│   [6] Verdict (Gemini)                                        │
-│   [7] Persist / Index (Elastic)                              │
-└───────┬───────────────────────────────────┬──────────────────┘
-        │                                   │
-┌───────▼─────────┐                 ┌────────▼─────────┐
-│  Bright Data MCP │                 │   Elastic MCP    │
-│  scraping + web  │                 │  kNN + BM25 +    │
-│  (News, Reuters, │                 │  memoria de      │
-│  fact-checkers)  │                 │  verificaciones  │
-└──────────────────┘                 └───────────────────┘
+│  Backend · FastAPI                                            │
+│  Endpoints:  /analizar  /scrape  /health                      │
+└───────────────────────────┬──────────────────────────────────┘
+                            │
+┌───────────────────────────▼──────────────────────────────────┐
+│  Agente · Google ADK (LlmAgent + Gemini 2.5 Flash)            │
+│  Sub-agentes:                                                 │
+│    • Google Search                                            │
+│    • URL Context                                              │
+│  Tools MCP:                                                   │
+│    • Brave Search (opcional)                                  │
+│    • Fetch (mcp-server-fetch)                                 │
+│  Scraping externo: Bright Data Scraping Browser (CDP)         │
+└───┬──────────────────────────────┬──────────────────┬────────┘
+    │                              │                  │
+┌───▼─────────┐         ┌──────────▼─────┐   ┌────────▼────────┐
+│  Firestore  │         │  Vertex AI     │   │  Arize Phoenix  │
+│  análisis + │         │  embeddings    │   │  trazas OTel    │
+│  scrapes    │         │  (768 dims)    │   │                 │
+└─────────────┘         └────────────────┘   └─────────────────┘
 ```
 
-### 🤝 Integración de partners (MCP)
-
-| Partner | Rol | Superpoder que aporta |
-|---|---|---|
-| **Bright Data MCP** | Extracción y búsqueda web | Acceso a la fuente original y a fact-checkers sorteando bloqueos anti-bot |
-| **Elastic MCP** | Triage semántico + memoria | Búsqueda híbrida (vectorial + léxica) para caché inteligente y recuperación de evidencia |
+> El agente vive en `main.py` como un `LlmAgent` con un prompt especializado en finanzas. La carpeta `agent/tools/` contiene el **esqueleto del refactor multi-paso** (triage → extractor → claim parser → verdict) que es la siguiente iteración del proyecto.
 
 ---
 
 ## 🔬 Cómo funciona
 
-El agente ejecuta hasta 8 pasos. El triage decide si hace falta todo el flujo:
+El agente recibe el texto y ejecuta el siguiente flujo conceptual (definido en su prompt principal):
 
-| Paso | Tool | Qué hace |
-|---|---|---|
-| **[0] Triage** | `triage_claim` (Elastic) | Busca el claim por similitud. `score≥0.92` → **early-exit** cacheado |
-| **[1] Extractor** | `fetch_article` (Bright Data) | Si es URL, extrae título, cuerpo, autor, fecha y dominio |
-| **[2] Claim Parser** | `extract_claims` (Gemini) | Descompone el texto en afirmaciones atómicas verificables |
-| **[3] Source Checker** | `check_source_reputation` | Evalúa la reputación del dominio (lista curada + heurísticas) |
-| **[4] Cross-Reference** | `search_factcheckers` / `search_trusted_news` (Bright Data) | Busca cada claim en Snopes, AFP, Maldita, Reuters, AP… |
-| **[5] Linguistic** | `analyze_language` (Gemini) | Detecta sensacionalismo, clickbait y carga emocional |
-| **[6] Verdict** | `build_verdict` (Gemini) | Sintetiza todo en score 0–100 + categoría + confianza |
-| **[7] Persist** | `index_verification` (Elastic) | Guarda el caso para alimentar futuros triages |
+| Paso | Qué hace |
+|---|---|
+| **1. Búsqueda multilateral** | Rastrea la noticia en ≥3 medios financieros regulados (Reuters, Bloomberg, prensa económica local) |
+| **2. Línea de tiempo** | Reconstruye cómo evolucionó el rumor / dato económico y qué hechos lo confirmaron o desmintieron |
+| **3. Detección de fraude** | Busca banderas rojas Ponzi: rentabilidades "garantizadas", urgencia/FOMO, foco en reclutar, lenguaje ostentoso |
+| **4. Métrica de riesgo** | Etiqueta Alta / Media / Baja según consenso entre analistas, volatilidad real e indicadores de estafa |
+| **5. Aclaración geopolítica** | Si la noticia involucra políticos/gobiernos, añade nota textual de neutralidad cultural |
 
-### Umbrales del triage
-
-```
-score >= 0.92          → EARLY EXIT  (mismo claim ya verificado → reusa veredicto)
-0.75 <= score < 0.92   → usa los hits como EVIDENCIA, corre el flujo completo
-score <  0.75          → flujo completo desde cero
-```
-
-> 🔒 **Regla de seguridad:** el early-exit **solo** aplica a claims que *nosotros ya verificamos* (caché propio). Parecerse a una noticia real **no** prueba que sea verdad — las fake news imitan noticias reales. Elastic dice *"es similar a X"*, nunca *"es verdad"*.
-
-### Formato del veredicto
-
-```json
-{
-  "score": 0-100,
-  "category": "Verdadero | Engañoso | Falso | Sin evidencia suficiente",
-  "confidence": "alta | media | baja",
-  "reasoning": "explicación bilingüe",
-  "evidence": [
-    { "source": "Reuters", "url": "https://...", "stance": "contradice" }
-  ]
-}
-```
+### Tono y límites
+- Objetivo, analítico, educativo, **nunca da consejos de inversión**.
+- Si la fuente no tiene historial riguroso → recomienda contrastar, no dictamina.
 
 ---
 
@@ -131,14 +103,20 @@ score <  0.75          → flujo completo desde cero
 
 | Capa | Tecnología |
 |---|---|
-| Razonamiento | **Gemini 2.5** |
-| Orquestación | **Agent Development Kit (ADK)** |
-| Despliegue del agente | **Vertex AI Agent Engine** |
-| Frontend | **Streamlit** en **Cloud Run** |
-| Memoria / búsqueda | **Elastic Cloud** (MCP) |
-| Extracción web | **Bright Data** (MCP) |
-| Secretos | **Google Secret Manager** |
-| Lenguaje | **Python 3.11+** |
+| Razonamiento | **Gemini 2.5 Flash** (Vertex AI) |
+| Framework de agentes | **Google ADK** |
+| Autenticación | **ADC** (Application Default Credentials) — la organización bloquea API keys |
+| Backend | **FastAPI + Uvicorn** |
+| Frontend | **Streamlit** (chat) |
+| Persistencia | **Firestore** (análisis + scrapes) |
+| Scraping | **Bright Data Scraping Browser** (CDP/WebSocket + Playwright) |
+| 🟢 **Track partner del reto** | **Elastic MCP** (triage + memoria semántica) |
+| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · **Arize Phoenix MCP** (datasets + trazas) |
+| Persistencia | **Firestore** (log operativo) · **Elastic** (memoria semántica con embeddings) |
+| Observabilidad | **Arize Phoenix** + OpenTelemetry |
+| Embeddings | **Vertex AI** `text-embedding-004` (768 dims) |
+| Despliegue | **Cloud Run** + **Vertex AI Agent Engine** |
+| Lenguaje | Python 3.11+ |
 
 ---
 
@@ -147,50 +125,61 @@ score <  0.75          → flujo completo desde cero
 ```
 Hackaton-Fake-News/
 ├── LICENSE                     # Apache 2.0
-├── README.md                   # este archivo
-├── PLAN.md                     # decisiones de arquitectura y técnicas
-├── IMPLEMENTATION.md           # hoja de ruta paso a paso
+├── README.md
+├── PLAN.md                     # decisiones de arquitectura
+├── IMPLEMENTATION.md           # hoja de ruta
 ├── .env.example                # plantilla de credenciales
 ├── requirements.txt
-├── Dockerfile                  # imagen para Cloud Run
-├── cloudbuild.yaml             # CI/CD
+├── Dockerfile                  # Cloud Run (Playwright 1.49 + uvicorn)
 │
-├── agent/                      # lógica del agente (ADK)
-│   ├── root_agent.py           # define el agente y registra las tools
-│   ├── config.py               # modelo, umbrales, idiomas
-│   ├── tools/                  # los 8 pasos del flujo
-│   ├── mcp/                    # clientes Bright Data y Elastic
-│   └── prompts/                # prompts ES/EN por paso
+├── main.py                     # FastAPI + ADK root_agent  ← núcleo actual
+├── scraper.py                  # Bright Data Scraping Browser
+├── esquema_datos.json          # mapping Elastic (referencia futura)
+│
+├── agent/
+│   ├── tools/                  # esqueleto multi-paso (en progreso)
+│   │   ├── embeddings.py       # ✅ Vertex AI text-embedding-004
+│   │   ├── triage.py           # 🟡 stub
+│   │   ├── extractor.py        # 🟡 stub
+│   │   ├── claim_parser.py     # 🟡 stub
+│   │   ├── source_checker.py   # 🟡 stub
+│   │   ├── cross_reference.py  # 🟡 stub
+│   │   ├── linguistic.py       # 🟡 stub
+│   │   ├── verdict.py          # 🟡 stub
+│   │   └── persistence.py      # 🟡 stub
+│   ├── mcp/
+│   │   └── local_cache.py      # caché local (puente hasta Elastic)
+│   └── prompts/                # claim_parser.es · linguistic.es · verdict.es
 │
 ├── frontend/
-│   └── app.py                  # interfaz Streamlit
+│   └── app.py                  # chat Streamlit
 │
 ├── scripts/
-│   ├── setup_elastic_index.py  # crea el índice verified_claims
-│   └── seed_factcheckers.py    # lista curada de dominios/reputación
+│   ├── setup_firestore.py      # ✅ permisos + config doc
+│   ├── setup_elastic_index.py  # 🟡 stub (mapping definido)
+│   └── seed_factcheckers.py    # 🟡 stub (lista definida)
 │
 └── tests/
-    ├── test_triage.py
-    ├── test_verdict.py
-    └── fixtures/
+    ├── test_triage.py          # xfail hasta implementar la tool
+    └── test_verdict.py         # xfail hasta implementar la tool
 ```
 
 ---
 
 ## 🚀 Instalación
 
-> ⚠️ Proyecto en construcción — ver el progreso en [`IMPLEMENTATION.md`](./IMPLEMENTATION.md).
-
 ### Requisitos previos
-- Python 3.11+
-- Una cuenta de **Google Cloud** con Vertex AI habilitado
-- Credenciales de **Bright Data** y **Elastic Cloud**
+- **Python 3.11+** (el proyecto usa wheels compatibles con 3.11–3.14)
+- **gcloud CLI** ([instalación](https://cloud.google.com/sdk/docs/install))
+- Cuenta en **Bright Data** (Scraping Browser endpoint)
+- Cuenta en **Arize Phoenix** (API key)
+- Acceso a un proyecto de **Google Cloud** con Vertex AI y Firestore habilitados
 
 ### Pasos
 
 ```bash
 # 1. Clonar
-git clone https://github.com/<usuario>/Hackaton-Fake-News.git
+git clone https://github.com/mariana-ruge/Hackaton-Fake-News.git
 cd Hackaton-Fake-News
 
 # 2. Entorno virtual
@@ -202,43 +191,55 @@ source .venv/bin/activate
 
 # 3. Dependencias
 pip install -r requirements.txt
+playwright install chromium  # solo si vas a usar scraper.py local
 
-# 4. Configurar credenciales
+# 4. Credenciales del proyecto Google Cloud (ADC, sin API key)
+gcloud auth login
+gcloud auth application-default login
+gcloud auth application-default set-quota-project <TU_PROJECT_ID>
+
+# 5. Variables de entorno
 cp .env.example .env
-#   → rellenar GEMINI_API_KEY, GOOGLE_CLOUD_PROJECT,
-#     BRIGHTDATA_API_KEY, ELASTIC_CLOUD_ID, ELASTIC_API_KEY
+#   → rellena GOOGLE_CLOUD_PROJECT, BRIGHT_DATA_WS_URL, API_KEY_PHOENIX, etc.
 
-# 5. Crear el índice de Elastic
-python scripts/setup_elastic_index.py
-
-# 6. (opcional) Cargar fact-checkers de referencia
-python scripts/seed_factcheckers.py
+# 6. (Opcional) Inicializar Firestore
+python scripts/setup_firestore.py
 ```
 
-### Variables de entorno
+### Variables de entorno mínimas
 
-| Variable | Descripción |
-|---|---|
-| `GEMINI_API_KEY` | Clave de la API de Gemini / Vertex AI |
-| `GOOGLE_CLOUD_PROJECT` | ID del proyecto de Google Cloud |
-| `BRIGHTDATA_API_KEY` | Clave de Bright Data MCP |
-| `ELASTIC_CLOUD_ID` | ID del cluster de Elastic Cloud |
-| `ELASTIC_API_KEY` | Clave de la API de Elastic |
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `GOOGLE_CLOUD_PROJECT` | ✅ | ID del proyecto de Google Cloud |
+| `GOOGLE_CLOUD_LOCATION` | ✅ | Región (por defecto `us-central1`) |
+| `MODEL_NAME` | ✅ | Modelo de Gemini (`gemini-2.5-flash` por defecto) |
+| `BRIGHT_DATA_WS_URL` | ✅ | Endpoint WebSocket de Bright Data Scraping Browser |
+| `API_KEY_PHOENIX` | ⚠️ Recomendada | Telemetría desactivada si falta |
+| `BRAVE_API_KEY` | Opcional | Habilita el MCP de Brave Search |
 
 ---
 
 ## ▶️ Uso
 
-### Local (frontend)
+### Backend (FastAPI)
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+- `POST /analizar` — recibe `{"texto_noticia": "..."}` y devuelve el análisis.
+- `POST /scrape`   — recibe `{"url": "..."}` y devuelve el texto limpio.
+- `GET  /health`   — estado de Vertex AI, Firestore, Phoenix, MCPs.
+
+### Frontend (Streamlit)
 ```bash
 streamlit run frontend/app.py
 ```
-Abre `http://localhost:8501`, elige idioma, pega una URL/titular/claim y observa al agente trabajar paso a paso.
+Abre `http://localhost:8501` y empieza a chatear. El frontend asume que el backend corre en `http://localhost:8000` (configurable con `API_URL`).
 
 ### Tests
 ```bash
-pytest
+pytest -q
 ```
+Los tests de tools aún en stub están marcados como `xfail` — `pytest` no fallará.
 
 ---
 
@@ -250,25 +251,28 @@ pytest
 
 ## 🗺️ Roadmap
 
-El plan de implementación detallado, por fases y con criterios de "hecho", está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
+El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 
-- [x] Decisiones de arquitectura (`PLAN.md`)
-- [x] Licencia Apache 2.0
-- [x] Cimientos del repo
-- [ ] Conectividad MCP (Bright Data + Elastic)
-- [ ] Tools del agente
-- [ ] Orquestación
-- [ ] Frontend Streamlit
-- [ ] Despliegue en Google Cloud
-- [ ] Demo y entrega Devpost
+- [x] Cimientos del repo + LICENSE
+- [x] Agente reactivo con ADK + GoogleSearch + URL Context
+- [x] Backend FastAPI + Firestore (log) + telemetría Phoenix
+- [x] Frontend Streamlit
+- [x] Bright Data Scraping Browser como puente provisional
+- [ ] 🟢 **Track Elastic**: Elastic MCP + índice `verified_claims` + triage semántico
+- [ ] Migrar de Brave + Fetch + Scraping Browser → **Bright Data MCP oficial**
+- [ ] **Arize Phoenix MCP** como bonus partner (consulta de datasets/trazas)
+- [ ] Refactor a flujo **multi-paso determinista** (`agent/tools/`)
+- [ ] Despliegue en Cloud Run + Agent Engine
+- [ ] Demo + entrega Devpost
 
 ---
 
 ## ⚠️ Limitaciones y uso responsable
 
-- VeritasAgent es una **herramienta de apoyo**, no un árbitro final de la verdad.
-- Los veredictos siempre incluyen **nivel de confianza** y **fuentes**: revísalas.
-- La calidad depende de las fuentes disponibles; un claim sin cobertura se marca como *"Sin evidencia suficiente"*, no como falso.
+- VeritasAgent es una **herramienta de apoyo**, **no es asesor financiero**.
+- Los análisis incluyen riesgo / banderas rojas pero **no dictan decisiones de inversión**.
+- La calidad depende de las fuentes disponibles; si no hay cobertura rigurosa, el agente lo dice claramente.
+- Para promesas de inversión en redes sociales, ante cualquier duda → **consulta a un asesor regulado**.
 
 ---
 

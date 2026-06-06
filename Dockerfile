@@ -1,5 +1,6 @@
-# Imagen base con Playwright + Python ya instalados (incluye Chromium y deps de SO)
-FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
+# Imagen base con Playwright + Python ya instalados (incluye Chromium y deps de SO).
+# La versión debe ser >= la pinneada en requirements.txt (playwright>=1.49.0).
+FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

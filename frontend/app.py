@@ -13,7 +13,7 @@ import requests
 import streamlit as st
 
 
-API_URL = os.getenv("API_URL", "http://localhost:8080").rstrip("/")
+API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 
 
 st.set_page_config(
