@@ -51,3 +51,4 @@ desktop.ini
 *.log
 data/local/
 tmp/
+.commit_msg.tmp
