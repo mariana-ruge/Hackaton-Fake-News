@@ -1,0 +1,22 @@
+{
+  "mappings": {
+    "properties": {
+      "claim_text":     { "type": "text" },
+      "claim_embedding":{ "type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine" },
+      "claim_hash":     { "type": "keyword" },
+      "language":       { "type": "keyword" },
+      "verdict_score":  { "type": "integer" },
+      "category":       { "type": "keyword" },
+      "confidence":     { "type": "keyword" },
+      "reasoning":      { "type": "text" },
+      "evidence":       { "type": "nested",
+                          "properties": {
+                            "source": {"type":"keyword"},
+                            "url":    {"type":"keyword"},
+                            "stance": {"type":"keyword"} } },
+      "source_domain":  { "type": "keyword" },
+      "verified_at":    { "type": "date" },
+      "ttl_days":       { "type": "integer" }
+    }
+  }
+}
