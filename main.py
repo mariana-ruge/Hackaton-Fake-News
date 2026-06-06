@@ -171,6 +171,31 @@ else:
     logger.warning("BRIGHTDATA_API_TOKEN no definido. Bright Data MCP quedará desactivado.")
     brightdata_toolset = None
 
+# --- Arize Phoenix MCP (bonus partner) ---
+# Servidor oficial: @arizeai/phoenix-mcp (npx). Permite al agente consultar
+# datasets curados (ej. ejemplos de fraudes financieros) y trazas pasadas.
+PHOENIX_BASE_URL = os.getenv("PHOENIX_BASE_URL", "https://app.phoenix.arize.com")
+
+if PHOENIX_API_KEY:
+    phoenix_env = {
+        **os.environ,
+        "PHOENIX_API_KEY": PHOENIX_API_KEY,
+        "PHOENIX_BASE_URL": PHOENIX_BASE_URL,
+    }
+    phoenix_toolset = MCPToolset(
+        connection_params=StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command="npx",
+                args=["-y", "@arizeai/phoenix-mcp"],
+                env=phoenix_env,
+            ),
+            timeout=60.0,
+        )
+    )
+else:
+    logger.info("Phoenix MCP desactivado (sin API_KEY_PHOENIX).")
+    phoenix_toolset = None
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Observabilidad (Arize Phoenix)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -248,6 +273,8 @@ if brightdata_toolset is not None:
     _agent_tools.append(brightdata_toolset)
 if elastic_toolset is not None:
     _agent_tools.append(elastic_toolset)
+if phoenix_toolset is not None:
+    _agent_tools.append(phoenix_toolset)
 
 root_agent = LlmAgent(
     name='Verificar_Fake_News',
@@ -281,6 +308,7 @@ async def lifespan(app: FastAPI):
     for name, toolset in (
         ("elastic_toolset", elastic_toolset),
         ("brightdata_toolset", brightdata_toolset),
+        ("phoenix_toolset", phoenix_toolset),
     ):
         if toolset is None:
             continue
@@ -312,6 +340,7 @@ class ScrapeRequest(BaseModel):
 # Tools de los pasos del agente (triage + persistencia en Elastic)
 # ──────────────────────────────────────────────────────────────────────────────
 from agent.mcp.elastic_client import get_default_client as _get_elastic
+from agent.pipeline import ejecutar_pipeline
 from agent.tools.triage import triage as triage_claim
 
 
@@ -492,6 +521,71 @@ async def analizar_noticia(query: NewsQuery):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post(
+    "/analizar/multipaso",
+    summary="Flujo multi-paso determinista: triage → claims → fuente → linguistic → verdict",
+)
+async def analizar_multipaso(query: NewsQuery):
+    """Ejecuta el pipeline determinista de `agent/pipeline.py` y devuelve
+    el desglose completo de pasos (ideal para la demo del reto).
+    """
+    try:
+        resultado = await ejecutar_pipeline(query.texto_noticia, language="es")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Error en /analizar/multipaso")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    # Log operativo en Firestore (para historial)
+    doc_id = _persist_firestore(
+        FIRESTORE_COLLECTION_ANALISIS,
+        {
+            "texto_noticia": query.texto_noticia,
+            "etiqueta": resultado.get("etiqueta"),
+            "confianza": resultado.get("confianza"),
+            "confianza_nivel": resultado.get("confianza_nivel"),
+            "resumen": resultado.get("resumen"),
+            "pasos_ejecutados": resultado.get("pasos_ejecutados", []),
+            "cacheado": resultado.get("cacheado", False),
+            "elastic_doc_id": resultado.get("elastic_doc_id"),
+            "agente": root_agent.name,
+            "modelo": MODEL_NAME,
+            "estado": "completado",
+            "modo": "multipaso",
+        },
+    )
+
+    return JSONResponse({**resultado, "firestore_doc_id": doc_id})
+
+
+@app.get("/historial", summary="Últimos N análisis guardados en Firestore")
+def historial(limit: int = 10):
+    """Devuelve los últimos análisis para auditoría rápida (no semántico)."""
+    if db is None:
+        raise HTTPException(status_code=503, detail="Firestore no disponible")
+    try:
+        docs = (
+            db.collection(FIRESTORE_COLLECTION_ANALISIS)
+            .order_by("fecha_analisis", direction=firestore.Query.DESCENDING)
+            .limit(max(1, min(limit, 100)))
+            .stream()
+        )
+        items = []
+        for d in docs:
+            data = d.to_dict() or {}
+            items.append({
+                "doc_id": d.id,
+                "texto_noticia": (data.get("texto_noticia") or "")[:200],
+                "etiqueta": data.get("etiqueta"),
+                "confianza": data.get("confianza"),
+                "modo": data.get("modo", "reactivo"),
+                "estado": data.get("estado"),
+                "fecha": str(data.get("fecha_analisis")) if data.get("fecha_analisis") else None,
+            })
+        return {"items": items, "count": len(items)}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.post("/scrape", summary="Extrae texto visible de una URL y lo guarda en Firestore")
 async def scrape_url(request: ScrapeRequest):
     try:
@@ -550,6 +644,7 @@ def health_check():
         "vertex_ai": "connected" if VERTEX_AI_CONNECTED else "unavailable",
         "elastic_mcp": elastic_status,
         "brightdata_mcp": "configured" if brightdata_toolset is not None else "missing_token",
+        "phoenix_mcp": "configured" if phoenix_toolset is not None else "disabled",
         "project_id": GOOGLE_CLOUD_PROJECT,
         "location": GOOGLE_CLOUD_LOCATION,
         "elastic_index": ELASTIC_INDEX,

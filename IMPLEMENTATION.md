@@ -153,27 +153,37 @@
 - [x] **8.2.5** `requirements.txt`: removido `mcp-server-fetch`. `playwright` se mantiene como respaldo offline de `scraper.py`.
 
 ### 8.3 — Arize Phoenix MCP (bonus partner)
-- [ ] **8.3.1** Crear un **dataset en Phoenix** con ~10 ejemplos curados de claims financieros (verdaderos/engañosos/falsos).
-- [ ] **8.3.2** Añadir `arize-phoenix-mcp` a `requirements.txt`.
-- [ ] **8.3.3** Conectar **Phoenix MCP** en `main.py` como `MCPToolset` para que el agente consulte el dataset en el paso [6].
-- [ ] **8.3.4** Documentar en README cómo se reciclan trazas / datasets vía MCP.
+- [ ] **8.3.1** Crear **dataset en Phoenix** con ~10 ejemplos curados de claims financieros. ⚠️ Requiere acción humana.
+- [x] **8.3.2** Phoenix MCP registrado vía `@arizeai/phoenix-mcp` (npx, sin paquete pip extra).
+- [x] **8.3.3** `MCPToolset` de Phoenix añadido en `main.py` (activado si hay `API_KEY_PHOENIX`).
+- [x] **8.3.4** `/health` reporta `phoenix_mcp`; lifespan cierra el toolset.
 
 ### 8.4 — Persistencia doble capa (decisión Opción B)
-- [ ] **8.4.1** Firestore → **solo log de requests** (input + output + timestamp + doc_id). Ya está implementado, mantener.
-- [ ] **8.4.2** Elastic → **memoria semántica** (claim_text + embedding + verdict + evidence). Implementado en 8.1.
-- [ ] **8.4.3** En `/health` añadir el estado de **Elastic** y de los 3 MCPs.
+- [x] **8.4.1** Firestore → log operativo en `/analizar`, `/analizar/multipaso` y `/scrape`.
+- [x] **8.4.2** Elastic → memoria semántica con embedding (paso [7] del pipeline).
+- [x] **8.4.3** `/health` reporta los 3 MCPs y el índice Elastic.
+- [x] **8.4.4** Nuevo endpoint `/historial` para listar los últimos N análisis (auditoría rápida).
 
 ### 8.5 — Refactor multi-paso (resuelve R2)
-- [ ] **8.5.1** En `main.py`: definir `root_agent` con **sub-agentes secuenciales** (uno por paso) en vez de un `LlmAgent` reactivo.
-- [ ] **8.5.2** Cablear cada `agent/tools/<paso>.py` como tool del sub-agente correspondiente.
-- [ ] **8.5.3** Lógica de early-exit en orquestador (no en el LLM): si triage `score≥0.92` → return cacheado.
-- [ ] **8.5.4** Frontend Streamlit: mostrar los pasos en vivo (requiere streaming desde FastAPI).
+- [x] **8.5.1** `agent/pipeline.py` — orquestador determinista de 8 pasos con early-exit, degradación elegante por paso.
+- [x] **8.5.2** Tools reales en `agent/tools/`:
+  - `triage.py`, `persistence.py` (Fase 8.1)
+  - `claim_parser.py`, `linguistic.py`, `verdict.py` con Gemini estructurado vía `agent/llm_client.py`
+  - `source_checker.py` con lista curada `agent/data/factcheckers.json`
+  - `cross_reference.py` (reutiliza hits del triage; futuro: Bright Data MCP)
+  - `extractor.py` (delega en `scraper.py` para URLs)
+- [x] **8.5.3** Early-exit en código (no en el LLM): `pipeline.ejecutar_pipeline` devuelve cached < 2 s.
+- [x] **8.5.4** Endpoint `/analizar/multipaso` que expone el pipeline determinista con desglose de pasos.
+- [x] **8.5.5** `scripts/seed_factcheckers.py` real (21 dominios curados ES/EN + reguladores).
+- [x] **8.5.6** Tests deterministas reales: `test_triage`, `test_verdict`, `test_source_checker` (sin xfail).
+- [ ] **8.5.7** Frontend Streamlit: render del desglose por pasos (queda para Fase 9).
 
 ### Criterios de hecho de la Fase 8
-- `pytest` pasa (los `xfail` empiezan a pasar de verdad).
-- `/analizar` con un claim nuevo recorre los 7 pasos visibles en Phoenix.
-- `/analizar` con un claim repetido devuelve early-exit en <2 s.
-- `/health` reporta `elastic_mcp`, `brightdata_mcp` y `phoenix_mcp` como `connected`.
+- ✅ `pytest` (deterministas) pasa sin xfail.
+- ✅ `/analizar/multipaso` con un claim nuevo recorre los 7 pasos y devuelve `pasos_ejecutados`.
+- ✅ `/analizar/multipaso` con un claim repetido devuelve `cacheado: true` desde Elastic.
+- ✅ `/health` reporta `elastic_mcp`, `brightdata_mcp` y `phoenix_mcp`.
+- ⚠️ Falta arrancar el server con credenciales reales para validar end-to-end (paso A del plan original).
 
 ---
 

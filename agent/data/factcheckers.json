@@ -1,0 +1,149 @@
+[
+  {
+    "nombre": "Maldita.es",
+    "dominio": "maldita.es",
+    "idioma": "es",
+    "categoria": "fact_checker",
+    "credibilidad": 0.9
+  },
+  {
+    "nombre": "Newtral",
+    "dominio": "newtral.es",
+    "idioma": "es",
+    "categoria": "fact_checker",
+    "credibilidad": 0.9
+  },
+  {
+    "nombre": "AFP Factual",
+    "dominio": "factual.afp.com",
+    "idioma": "es",
+    "categoria": "fact_checker",
+    "credibilidad": 0.92
+  },
+  {
+    "nombre": "Chequeado",
+    "dominio": "chequeado.com",
+    "idioma": "es",
+    "categoria": "fact_checker",
+    "credibilidad": 0.9
+  },
+  {
+    "nombre": "Colombiacheck",
+    "dominio": "colombiacheck.com",
+    "idioma": "es",
+    "categoria": "fact_checker",
+    "credibilidad": 0.88
+  },
+  {
+    "nombre": "PolitiFact",
+    "dominio": "politifact.com",
+    "idioma": "en",
+    "categoria": "fact_checker",
+    "credibilidad": 0.88
+  },
+  {
+    "nombre": "Snopes",
+    "dominio": "snopes.com",
+    "idioma": "en",
+    "categoria": "fact_checker",
+    "credibilidad": 0.85
+  },
+  {
+    "nombre": "FactCheck.org",
+    "dominio": "factcheck.org",
+    "idioma": "en",
+    "categoria": "fact_checker",
+    "credibilidad": 0.88
+  },
+  {
+    "nombre": "Reuters Fact Check",
+    "dominio": "reuters.com",
+    "idioma": "en",
+    "categoria": "fact_checker",
+    "credibilidad": 0.9
+  },
+  {
+    "nombre": "Reuters",
+    "dominio": "reuters.com",
+    "idioma": "en",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.92
+  },
+  {
+    "nombre": "Bloomberg",
+    "dominio": "bloomberg.com",
+    "idioma": "en",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.92
+  },
+  {
+    "nombre": "Financial Times",
+    "dominio": "ft.com",
+    "idioma": "en",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.92
+  },
+  {
+    "nombre": "WSJ",
+    "dominio": "wsj.com",
+    "idioma": "en",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.9
+  },
+  {
+    "nombre": "Associated Press",
+    "dominio": "apnews.com",
+    "idioma": "en",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.92
+  },
+  {
+    "nombre": "EFE",
+    "dominio": "efe.com",
+    "idioma": "es",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.88
+  },
+  {
+    "nombre": "Expansión",
+    "dominio": "expansion.com",
+    "idioma": "es",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.85
+  },
+  {
+    "nombre": "El Economista",
+    "dominio": "eleconomista.es",
+    "idioma": "es",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.82
+  },
+  {
+    "nombre": "Cinco Días",
+    "dominio": "cincodias.elpais.com",
+    "idioma": "es",
+    "categoria": "medio_referencia",
+    "credibilidad": 0.85
+  },
+  {
+    "nombre": "CNMV",
+    "dominio": "cnmv.es",
+    "idioma": "es",
+    "categoria": "regulador",
+    "credibilidad": 0.95
+  },
+  {
+    "nombre": "SEC",
+    "dominio": "sec.gov",
+    "idioma": "en",
+    "categoria": "regulador",
+    "credibilidad": 0.97
+  },
+  {
+    "nombre": "CONSAR",
+    "dominio": "gob.mx",
+    "idioma": "es",
+    "categoria": "regulador",
+    "credibilidad": 0.9
+  }
+]
