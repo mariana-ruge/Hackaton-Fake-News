@@ -1,7 +1,10 @@
 """Helper para llamadas a Gemini con prompts plantilla.
 
-Centraliza la llamada al modelo (Vertex AI) y el parseo JSON tolerante.
+Centraliza la llamada al modelo y el parseo JSON tolerante.
 Lo usan las tools `claim_parser`, `linguistic` y `verdict`.
+
+El cliente se obtiene de `agent.genai_client.get_client()` y respeta el modo
+seleccionado en `GOOGLE_GENAI_USE_VERTEXAI` (Vertex/ADC o API key).
 """
 
 from __future__ import annotations
@@ -9,27 +12,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
 
-from vertexai.generative_models import GenerationConfig, GenerativeModel
+from google.genai import types as genai_types
+
+from agent.genai_client import get_client, get_config
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-
-_model: GenerativeModel | None = None
-
-
-def _get_model() -> GenerativeModel:
-    """Lazy-init del modelo. `vertexai.init()` ya se ejecuta en main.py."""
-    global _model
-    if _model is None:
-        _model = GenerativeModel(MODEL_NAME)
-    return _model
 
 
 def load_prompt(name: str, language: str = "es") -> str:
@@ -56,7 +49,6 @@ def _parse_json_tolerant(text: str) -> Any:
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        # Busca el primer { … } o [ … ] balanceado de forma simple.
         for opener, closer in (("{", "}"), ("[", "]")):
             start = cleaned.find(opener)
             end = cleaned.rfind(closer)
@@ -75,30 +67,23 @@ async def generate_json(
     variables: dict[str, Any] | None = None,
     temperature: float = 0.2,
 ) -> Any:
-    """Renderiza un prompt, lo manda a Gemini y devuelve el JSON parseado.
-
-    Args:
-        prompt_name: nombre del prompt sin extensión (ej. `"verdict"`).
-        language:    `"es"` o `"en"`.
-        variables:   dict con las variables a sustituir con `str.format`.
-        temperature: bajo (0.1-0.3) para tareas estructuradas.
-    """
+    """Renderiza un prompt, lo manda a Gemini y devuelve el JSON parseado."""
     template = load_prompt(prompt_name, language)
-    if variables:
-        # Las llaves `{`/`}` que NO son placeholders ya se preservan porque
-        # los prompts solo usan `{texto}`, `{claims}`, etc.
-        rendered = template.format(**variables)
-    else:
-        rendered = template
+    rendered = template.format(**variables) if variables else template
 
-    model = _get_model()
-    config = GenerationConfig(
+    cfg = get_config()
+    client = get_client()
+    config = genai_types.GenerateContentConfig(
         temperature=temperature,
         response_mime_type="application/json",
     )
 
     def _call() -> str:
-        resp = model.generate_content(rendered, generation_config=config)
+        resp = client.models.generate_content(
+            model=cfg.model_name,
+            contents=rendered,
+            config=config,
+        )
         return resp.text or ""
 
     raw = await asyncio.to_thread(_call)
@@ -113,11 +98,16 @@ async def generate_text(
     temperature: float = 0.3,
 ) -> str:
     """Llamada simple de texto libre — para pasos sin JSON estructurado."""
-    model = _get_model()
-    config = GenerationConfig(temperature=temperature)
+    cfg = get_config()
+    client = get_client()
+    config = genai_types.GenerateContentConfig(temperature=temperature)
 
     def _call() -> str:
-        resp = model.generate_content(prompt, generation_config=config)
+        resp = client.models.generate_content(
+            model=cfg.model_name,
+            contents=prompt,
+            config=config,
+        )
         return resp.text or ""
 
     return await asyncio.to_thread(_call)

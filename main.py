@@ -9,10 +9,17 @@ Arranca con:
     uvicorn main:app --host 0.0.0.0 --port 8000
 
 Variables de entorno requeridas (ver .env.example):
-    GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, MODEL_NAME,
+    # Auth Gemini — elige UNO de los dos modos:
+    #  A) Vertex AI / ADC (recomendado para org y producción):
+    #       GOOGLE_GENAI_USE_VERTEXAI=True
+    #       GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION
+    #  B) API key directa (fácil para devs/jueces locales):
+    #       GOOGLE_GENAI_USE_VERTEXAI=False
+    #       GOOGLE_API_KEY
+    MODEL_NAME, EMBEDDING_MODEL
     ELASTIC_URL (o ELASTIC_CLOUD_ID), ELASTIC_API_KEY, ELASTIC_INDEX,
     BRIGHTDATA_API_TOKEN,
-    API_KEY_PHOENIX (recomendada para telemetría)
+    API_KEY_PHOENIX (recomendada para telemetría + bonus MCP)
 """
 
 from __future__ import annotations
@@ -72,43 +79,54 @@ from google.genai import types as genai_types
 from mcp import StdioServerParameters
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Configuración: variables unificadas (ver .env.example)
+# Configuración: dos modos de autenticación soportados.
+#   Modo A · Vertex AI (ADC)  → GOOGLE_GENAI_USE_VERTEXAI=True + ADC
+#   Modo B · API key directa  → GOOGLE_GENAI_USE_VERTEXAI=False + GOOGLE_API_KEY
 # ──────────────────────────────────────────────────────────────────────────────
+from agent.genai_client import describe_auth, get_config as _get_genai_config
+
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
 GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
 
-if not GOOGLE_CLOUD_PROJECT:
-    raise RuntimeError(
-        "GOOGLE_CLOUD_PROJECT no está definida. Crea tu .env a partir de .env.example "
-        "y rellena el ID del proyecto de Google Cloud."
-    )
+# Forzamos la lectura del modo ahora para detectar errores temprano.
+_genai_cfg = _get_genai_config()
+USE_VERTEXAI = (_genai_cfg.mode == "vertex_adc")
 
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
-os.environ["GOOGLE_CLOUD_PROJECT"] = GOOGLE_CLOUD_PROJECT
-os.environ["GOOGLE_CLOUD_LOCATION"] = GOOGLE_CLOUD_LOCATION
+# Para compatibilidad con código que lee estas env vars directamente:
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True" if USE_VERTEXAI else "False"
+if USE_VERTEXAI:
+    os.environ["GOOGLE_CLOUD_PROJECT"] = GOOGLE_CLOUD_PROJECT or ""
+    os.environ["GOOGLE_CLOUD_LOCATION"] = GOOGLE_CLOUD_LOCATION
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Inicialización de Vertex AI (autenticación vía ADC)
+# Inicialización de Vertex AI (solo si el modo elegido es ADC)
 # ──────────────────────────────────────────────────────────────────────────────
-import vertexai
-from google.cloud import aiplatform
+VERTEX_AI_CONNECTED = False
 
-vertexai.init(project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)
+if USE_VERTEXAI:
+    import vertexai
+    from google.cloud import aiplatform
 
-VERTEX_AI_CONNECTED = True
-try:
-    model_service_client = aiplatform.gapic.ModelServiceClient(
-        client_options={"api_endpoint": f"{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com"}
+    vertexai.init(project=GOOGLE_CLOUD_PROJECT, location=GOOGLE_CLOUD_LOCATION)
+
+    try:
+        model_service_client = aiplatform.gapic.ModelServiceClient(
+            client_options={"api_endpoint": f"{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com"}
+        )
+        parent = f"projects/{GOOGLE_CLOUD_PROJECT}/locations/{GOOGLE_CLOUD_LOCATION}"
+        next(iter(model_service_client.list_models(parent=parent)), None)
+        VERTEX_AI_CONNECTED = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Vertex AI ADC no disponible o sin permisos. Proyecto=%s, región=%s. Error: %s",
+            GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, exc,
+        )
+else:
+    logger.info(
+        "Modo API key directa. Vertex AI Agent Engine NO podrá usarse hasta cambiar a "
+        "GOOGLE_GENAI_USE_VERTEXAI=True. Cloud Run y todo lo local funciona igual."
     )
-    parent = f"projects/{GOOGLE_CLOUD_PROJECT}/locations/{GOOGLE_CLOUD_LOCATION}"
-    next(iter(model_service_client.list_models(parent=parent)), None)
-except Exception as exc:  # noqa: BLE001
-    logger.warning(
-        "Vertex AI ADC no disponible o sin permisos. Proyecto=%s, región=%s. Error: %s",
-        GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, exc,
-    )
-    VERTEX_AI_CONNECTED = False
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MCP toolsets
@@ -222,11 +240,19 @@ else:
 FIRESTORE_COLLECTION_ANALISIS = os.getenv("FIRESTORE_COLLECTION_ANALISIS", "analisis_noticias")
 FIRESTORE_COLLECTION_SCRAPES = os.getenv("FIRESTORE_COLLECTION_SCRAPES", "verificaciones")
 
-try:
-    db = firestore.Client(project=GOOGLE_CLOUD_PROJECT)
-except Exception as exc:  # noqa: BLE001
-    logger.warning("No se pudo inicializar Firestore: %s", exc)
-    db = None
+# Firestore necesita un project ID válido; si no hay (modo API key sin GCP),
+# queda desactivado limpiamente y los endpoints siguen funcionando.
+db = None
+if GOOGLE_CLOUD_PROJECT:
+    try:
+        db = firestore.Client(project=GOOGLE_CLOUD_PROJECT)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("No se pudo inicializar Firestore: %s", exc)
+else:
+    logger.info(
+        "Firestore desactivado: no hay GOOGLE_CLOUD_PROJECT. Los endpoints funcionan "
+        "pero no se guardará historial."
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -639,9 +665,13 @@ def health_check():
         "status": "online",
         "agent": root_agent.name,
         "model": MODEL_NAME,
+        "auth": describe_auth(),                # NEW: modo elegido (vertex_adc | api_key)
         "telemetry": "connected" if PHOENIX_ENABLED else "disabled",
         "firestore": "connected" if db is not None else "unavailable",
-        "vertex_ai": "connected" if VERTEX_AI_CONNECTED else "unavailable",
+        "vertex_ai": (
+            "connected" if VERTEX_AI_CONNECTED
+            else ("disabled" if not USE_VERTEXAI else "unavailable")
+        ),
         "elastic_mcp": elastic_status,
         "brightdata_mcp": "configured" if brightdata_toolset is not None else "missing_token",
         "phoenix_mcp": "configured" if phoenix_toolset is not None else "disabled",

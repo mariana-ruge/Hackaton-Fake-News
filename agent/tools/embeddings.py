@@ -1,9 +1,8 @@
-"""Async embedding helper usando Vertex AI (text-embedding-004).
+"""Embeddings agnósticos al backend (Vertex ADC o API key).
 
-La organización bloquea las API keys → autenticamos vía ADC + Vertex AI.
-Para correr localmente asegúrate de haber ejecutado:
-    gcloud auth application-default login
-    gcloud auth application-default set-quota-project <project-id>
+Usa el cliente unificado de `agent.genai_client` para que el mismo código
+funcione tanto con `GOOGLE_GENAI_USE_VERTEXAI=True` (ADC) como con
+`GOOGLE_API_KEY` (API directa de Google AI Studio).
 
 Cache LRU en memoria + retry exponencial ante throttling.
 """
@@ -13,36 +12,23 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-import os
 from collections import OrderedDict
 
 import numpy as np
 from google.api_core import exceptions as gcp_exceptions
-from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
+from google.genai import types as genai_types
+
+from agent.genai_client import get_client, get_config
 
 logger = logging.getLogger(__name__)
 
-_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
 _DIMENSION = 768
 _MAX_CACHE = 100
 _MAX_RETRIES = 3
 _TASK_TYPE = "SEMANTIC_SIMILARITY"
 
 _cache: "OrderedDict[str, list[float]]" = OrderedDict()
-_model: TextEmbeddingModel | None = None
 _lock = asyncio.Lock()
-
-
-def _get_model() -> TextEmbeddingModel:
-    """Lazy-init del modelo de embeddings de Vertex.
-
-    Vertex AI ya debe estar inicializado (lo hace `main.py` con
-    `vertexai.init(project=..., location=...)`).
-    """
-    global _model
-    if _model is None:
-        _model = TextEmbeddingModel.from_pretrained(_MODEL_NAME)
-    return _model
 
 
 def _hash_text(text: str) -> str:
@@ -71,11 +57,18 @@ def _normalize(vec: list[float]) -> list[float]:
     return (arr / norm).tolist()
 
 
+def _resolve_model(name: str) -> str:
+    """Vertex AI espera el nombre tal cual; AI Studio acepta con/sin `models/`."""
+    if name.startswith("models/"):
+        return name
+    return name  # google-genai normaliza internamente
+
+
 async def get_embedding(text: str) -> list[float]:
     """Devuelve un embedding de 768 dimensiones L2-normalizado para `text`.
 
-    - Modelo: text-embedding-004 (Vertex AI)
-    - Cache LRU en memoria (últimos 100 textos por hash SHA-256)
+    - Modelo configurable vía `EMBEDDING_MODEL` (por defecto `text-embedding-004`).
+    - Cache LRU en memoria (últimos 100 textos por hash SHA-256).
     - Retry exponencial (2^n s) ante errores de cuota / disponibilidad.
     """
     if not text or not text.strip():
@@ -86,21 +79,33 @@ async def get_embedding(text: str) -> list[float]:
     if cached is not None:
         return cached
 
-    model = _get_model()
-    inputs = [TextEmbeddingInput(text=text, task_type=_TASK_TYPE)]
+    cfg = get_config()
+    client = get_client()
+    model_name = _resolve_model(cfg.embedding_model)
+
+    # `task_type` solo aplica a la API pública; en Vertex se ignora con buen comportamiento.
+    embed_config = genai_types.EmbedContentConfig(
+        output_dimensionality=_DIMENSION,
+        task_type=_TASK_TYPE,
+    )
 
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES):
         try:
-            # `get_embeddings` es síncrono → lo movemos a un thread para
-            # no bloquear el event loop.
-            response = await asyncio.to_thread(
-                model.get_embeddings,
-                inputs,
-                output_dimensionality=_DIMENSION,
-            )
-            raw = response[0].values
-            vector = _normalize(list(raw))
+            def _call():
+                return client.models.embed_content(
+                    model=model_name,
+                    contents=text,
+                    config=embed_config,
+                )
+
+            response = await asyncio.to_thread(_call)
+            # `response.embeddings` es lista[ContentEmbedding] con `.values`
+            embeddings = getattr(response, "embeddings", None) or []
+            if not embeddings:
+                raise RuntimeError("respuesta sin embeddings")
+            raw = list(embeddings[0].values)
+            vector = _normalize(raw)
 
             async with _lock:
                 _cache_put(key, vector)
@@ -116,6 +121,9 @@ async def get_embedding(text: str) -> list[float]:
             if attempt == _MAX_RETRIES - 1:
                 break
             await asyncio.sleep(2 ** attempt)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            break
 
     raise RuntimeError(
         f"No se pudo obtener embedding tras {_MAX_RETRIES} intentos: {last_exc}"

@@ -193,29 +193,48 @@ source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium  # solo si vas a usar scraper.py local
 
-# 4. Credenciales del proyecto Google Cloud (ADC, sin API key)
-gcloud auth login
-gcloud auth application-default login
-gcloud auth application-default set-quota-project <TU_PROJECT_ID>
+# 4. Autenticación a Gemini (elige UN modo, ver siguiente sección)
+#    Modo A (recomendado): gcloud auth application-default login + ADC
+#    Modo B (rápido):      pon GOOGLE_API_KEY en .env
 
 # 5. Variables de entorno
 cp .env.example .env
-#   → rellena GOOGLE_CLOUD_PROJECT, BRIGHT_DATA_WS_URL, API_KEY_PHOENIX, etc.
+#   → revisa la cabecera de Gemini y elige el modo
+#   → rellena ELASTIC_*, BRIGHTDATA_API_TOKEN, API_KEY_PHOENIX
 
-# 6. (Opcional) Inicializar Firestore
+# 6. (Opcional) Inicializar Firestore + Elastic + factcheckers
 python scripts/setup_firestore.py
+python scripts/setup_elastic_index.py
+python scripts/seed_factcheckers.py
 ```
 
-### Variables de entorno mínimas
+### 🔐 Dos modos de autenticación a Gemini
+
+| | **Modo A · Vertex AI (ADC)** | **Modo B · API key directa** |
+|---|---|---|
+| **Cuándo usar** | Producción, cuentas corporativas, despliegue | Demos locales, jueces, devs casuales |
+| **Pre-requisito** | `gcloud auth application-default login` | API key de [AI Studio](https://aistudio.google.com/app/apikey) |
+| **Variables clave** | `GOOGLE_GENAI_USE_VERTEXAI=True` + `GOOGLE_CLOUD_PROJECT` | `GOOGLE_GENAI_USE_VERTEXAI=False` + `GOOGLE_API_KEY` |
+| **Cloud Run / Agent Engine** | ✅ | ❌ (solo local) |
+| **Firestore** | ✅ | ⚠️ Solo si también pones `GOOGLE_CLOUD_PROJECT` con permisos |
+| **Lo verás en `/health`** | `"auth_mode": "vertex_adc"` | `"auth_mode": "api_key"` |
+
+> **Política org:** Si tu organización **bloquea API keys** (caso del proyecto Hackaton-498600), usa **modo A**.
+> **Resto:** los dos funcionan igual de bien para el pipeline; **Bright Data, Elastic y Phoenix MCP son agnósticos al modo**.
+
+### Variables de entorno principales
 
 | Variable | Obligatoria | Descripción |
 |---|---|---|
-| `GOOGLE_CLOUD_PROJECT` | ✅ | ID del proyecto de Google Cloud |
-| `GOOGLE_CLOUD_LOCATION` | ✅ | Región (por defecto `us-central1`) |
+| `GOOGLE_GENAI_USE_VERTEXAI` | ✅ | `True` (ADC) o `False` (API key) |
+| `GOOGLE_CLOUD_PROJECT` | ✅ en modo A | ID del proyecto de Google Cloud |
+| `GOOGLE_CLOUD_LOCATION` | ✅ en modo A | Región (`us-central1` por defecto) |
+| `GOOGLE_API_KEY` | ✅ en modo B | API key de AI Studio |
 | `MODEL_NAME` | ✅ | Modelo de Gemini (`gemini-2.5-flash` por defecto) |
-| `BRIGHT_DATA_WS_URL` | ✅ | Endpoint WebSocket de Bright Data Scraping Browser |
-| `API_KEY_PHOENIX` | ⚠️ Recomendada | Telemetría desactivada si falta |
-| `BRAVE_API_KEY` | Opcional | Habilita el MCP de Brave Search |
+| `EMBEDDING_MODEL` | ✅ | `text-embedding-004` (768 dims) |
+| `ELASTIC_API_KEY` + `ELASTIC_URL`/`ELASTIC_CLOUD_ID` | 🟢 | Track partner del reto |
+| `BRIGHTDATA_API_TOKEN` | ✅ | Para `/scrape` y búsqueda |
+| `API_KEY_PHOENIX` | ⚠️ Recomendada | Habilita telemetría + Phoenix MCP |
 
 ---
 
