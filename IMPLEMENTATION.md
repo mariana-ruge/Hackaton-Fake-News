@@ -70,10 +70,13 @@
   | `secretmanager` | Guardar claves de Bright Data / Elastic |
   | `cloudbuild` + `artifactregistry` | CI/CD y la imagen Docker |
 
-- [ ] **0.5.4** Autenticación local para que el código use Vertex AI.
+- [ ] **0.5.4** Autenticación local con **ADC** (Application Default Credentials).
+  > ⚠️ La organización **bloquea las API keys** por política de seguridad. Usamos ADC.
+  > No hay `GEMINI_API_KEY` que copiar — el SDK detecta las credenciales automáticamente.
   ```bash
   gcloud auth login
   gcloud auth application-default login
+  gcloud auth application-default set-quota-project <PROJECT_ID>
   ```
 
 - [ ] **0.5.5** Definir región por defecto.
