@@ -19,9 +19,8 @@ pydantic>=2.10.3
 # HTTP
 httpx>=0.27.2
 
-# Scraping (1.47 no tiene wheel para Py 3.14; 1.49+ sí)
+# Scraping (queda como respaldo offline de scraper.py — Bright Data MCP lo cubre en producción)
 playwright>=1.49.0
-mcp-server-fetch>=2026.6.4
 
 # Utils
 python-dotenv>=1.0.1

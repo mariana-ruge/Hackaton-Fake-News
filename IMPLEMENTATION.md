@@ -135,20 +135,22 @@
 > Objetivo: cumplir el track Elastic, sumar Phoenix MCP como bonus partner, y dejar Firestore como log operativo (NO como memoria semántica).
 
 ### 8.1 — Elastic MCP (track partner) 🟢
-- [ ] **8.1.1** Crear cluster en **Elastic Cloud** (free trial 14 días — suficiente para el reto).
-- [ ] **8.1.2** Añadir a `requirements.txt`: cliente del MCP oficial (`elasticsearch` ya está; se añade el toolset MCP en `main.py`).
-- [ ] **8.1.3** Implementar `scripts/setup_elastic_index.py` real → crea índice `verified_claims` con el mapping de `esquema_datos.json` (dense_vector 768).
-- [ ] **8.1.4** Conectar **Elastic MCP** en `main.py` como `MCPToolset` del agente.
-- [ ] **8.1.5** Implementar `agent/tools/triage.py` → usa el MCP para búsqueda híbrida + umbrales 0.92 / 0.75.
-- [ ] **8.1.6** Implementar `agent/tools/persistence.py` → indexa el veredicto consolidado en Elastic.
-- [ ] **8.1.7** Migrar `agent/mcp/local_cache.py` a usar Elastic (queda como fallback offline).
+- [ ] **8.1.1** Crear cluster en **Elastic Cloud** (free trial 14 días). ⚠️ Requiere tu acción.
+- [x] **8.1.2** `requirements.txt`: `elasticsearch>=8.13.0` ya estaba.
+- [x] **8.1.3** `scripts/setup_elastic_index.py` real (dense_vector 768, cosine, idempotente, soporta `--recreate`).
+- [x] **8.1.4** `MCPToolset` de **`@elastic/mcp-server-elasticsearch`** en `main.py` (npx, env `ES_API_KEY/ES_URL/ES_CLOUD_ID`).
+- [x] **8.1.5** `agent/tools/triage.py` real: hybrid search (kNN + BM25) + umbrales 0.92 / 0.75 + acciones `early_exit | evidence | fresh`.
+- [x] **8.1.6** `agent/tools/persistence.py` real: indexa veredictos con embedding via `agent/mcp/elastic_client.py`.
+- [x] **8.1.7** `agent/mcp/elastic_client.py` nuevo cliente reutilizable (conexión, triage, index, get_by_hash).
+- [x] **8.1.8** `/analizar` cablea triage → early-exit (cuando match ≥ 0.92) → análisis LLM → indexado de veredicto.
+- [x] **8.1.9** `/health` reporta `elastic_mcp` con ping real.
 
 ### 8.2 — Bright Data MCP (sustituye Brave + Fetch + scraper.py)
-- [ ] **8.2.1** Cuenta + endpoint del **Bright Data MCP** oficial.
-- [ ] **8.2.2** En `main.py`: añadir `MCPToolset` de Bright Data y **retirar** `brave_toolset` y `fetch_toolset`.
-- [ ] **8.2.3** Limpiar `scraper.py` (queda solo como referencia o se borra).
-- [ ] **8.2.4** Actualizar `.env.example`: quitar `BRAVE_API_KEY` y `BRIGHT_DATA_WS_URL`, añadir `BRIGHTDATA_MCP_*`.
-- [ ] **8.2.5** Actualizar `requirements.txt`: quitar `mcp-server-fetch` (lo cubre Bright Data MCP).
+- [ ] **8.2.1** Crear cuenta + zona Web Unlocker + obtener `API_TOKEN`. ⚠️ Requiere tu acción.
+- [x] **8.2.2** `MCPToolset` de **`@brightdata/mcp`** en `main.py`; retirados `brave_toolset` y `fetch_toolset`.
+- [x] **8.2.3** `/scrape` migrado a `_fetch_url_with_brightdata` (usa `scrape_as_markdown` del MCP).
+- [x] **8.2.4** `.env.example` actualizado: removidos `BRAVE_API_KEY` y `BRIGHT_DATA_WS_URL`, añadidos `BRIGHTDATA_API_TOKEN` y `BRIGHTDATA_WEB_UNLOCKER_ZONE`.
+- [x] **8.2.5** `requirements.txt`: removido `mcp-server-fetch`. `playwright` se mantiene como respaldo offline de `scraper.py`.
 
 ### 8.3 — Arize Phoenix MCP (bonus partner)
 - [ ] **8.3.1** Crear un **dataset en Phoenix** con ~10 ejemplos curados de claims financieros (verdaderos/engañosos/falsos).

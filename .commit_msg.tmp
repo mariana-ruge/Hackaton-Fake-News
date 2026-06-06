@@ -1,0 +1,39 @@
+Fase 8.1 + 8.2: Elastic MCP (track) y Bright Data MCP
+
+Implementa el track partner del reto (Elastic) y migra los MCPs
+secundarios al partner de scraping (Bright Data).
+
+Elastic MCP (8.1) - track del reto:
+- scripts/setup_elastic_index.py: implementacion real (dense_vector 768,
+  cosine, idempotente, soporta --recreate). Lee ELASTIC_URL/CLOUD_ID.
+- agent/mcp/elastic_client.py: cliente reutilizable con conexion,
+  hybrid_search (kNN + BM25), triage con umbrales 0.92/0.75,
+  index_verification y get_by_hash.
+- agent/tools/triage.py: ejecuta el paso 0 del flujo. Genera embedding
+  con Vertex AI, busca en Elastic, aplica umbrales y devuelve la accion
+  early_exit, evidence o fresh. Degrada con elegancia si Elastic falla.
+- agent/tools/persistence.py: paso 7. Indexa el veredicto consolidado
+  en Elastic via cliente, calculando embedding del claim.
+- main.py: anade MCPToolset de @elastic/mcp-server-elasticsearch.
+  /analizar ahora ejecuta triage primero; si score >= 0.92 devuelve el
+  cacheado en menos de 2s. Si no, corre el LLM y al final indexa el
+  veredicto en Elastic best-effort.
+
+Bright Data MCP (8.2) - sustituye Brave + Fetch + scraper.py:
+- main.py: anade MCPToolset de @brightdata/mcp, retira brave_toolset y
+  fetch_toolset. _fetch_url_with_brightdata usa scrape_as_markdown.
+  /scrape migrado.
+- .env.example: removidos BRAVE_API_KEY y BRIGHT_DATA_WS_URL,
+  anadidos BRIGHTDATA_API_TOKEN y BRIGHTDATA_WEB_UNLOCKER_ZONE.
+- requirements.txt: removido mcp-server-fetch. playwright se mantiene
+  como respaldo offline para scraper.py.
+
+Otros:
+- /health: nuevo campo elastic_mcp con ping real + elastic_index +
+  brightdata_mcp. Removido brave_mcp.
+- lifespan: cierra elastic_toolset y brightdata_toolset.
+- IMPLEMENTATION.md: marca completadas 8.1.2-9 y 8.2.2-5. Solo quedan
+  pendientes 8.1.1 (crear cluster Elastic Cloud) y 8.2.1 (cuenta
+  Bright Data + API token) que requieren accion humana.
+
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
