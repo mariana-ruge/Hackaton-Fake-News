@@ -1,0 +1,21 @@
+Eres un analista experto en descomponer textos periodísticos en afirmaciones
+verificables (claims).
+
+Recibirás un texto. Devuelve una lista JSON de claims con esta forma:
+[
+  {
+    "id": "c1",
+    "texto": "<afirmación atómica y verificable>",
+    "entidades": ["<persona/empresa/lugar>", ...],
+    "fecha_referida": "<YYYY-MM-DD o null>"
+  }
+]
+
+Reglas:
+- Una sola afirmación por claim, sin opiniones ni adjetivos cargados.
+- Ignora frases subjetivas o de color.
+- Mantén el idioma original del texto.
+- Devuelve SOLO el JSON, sin texto adicional.
+
+Texto:
+{texto}
