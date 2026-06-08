@@ -189,12 +189,35 @@ else:
     logger.warning("BRIGHTDATA_API_TOKEN no definido. Bright Data MCP quedará desactivado.")
     brightdata_toolset = None
 
-# --- Arize Phoenix MCP (bonus partner) ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Arize Phoenix — UNA sola configuración cubre dos roles:
+#   1. Telemetría OpenTelemetry: GoogleADKInstrumentor envía trazas a Phoenix.
+#   2. Phoenix MCP (bonus partner): el agente consulta datasets/trazas vía MCP.
+# Ambos comparten `API_KEY_PHOENIX`. Si falta la clave, los dos quedan
+# desactivados limpiamente — el resto del agente sigue funcionando.
+# ──────────────────────────────────────────────────────────────────────────────
+PHOENIX_API_KEY = os.getenv("API_KEY_PHOENIX")
+PHOENIX_BASE_URL = os.getenv("PHOENIX_BASE_URL", "https://app.phoenix.arize.com")
+PHOENIX_ENABLED = bool(PHOENIX_API_KEY)
+
+# --- 1. Telemetría OpenTelemetry → Phoenix ---
+if PHOENIX_ENABLED:
+    os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={PHOENIX_API_KEY}"
+    os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = f"{PHOENIX_BASE_URL.rstrip('/')}/v1/traces"
+
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(
+        SimpleSpanProcessor(OTLPSpanExporter(endpoint=os.environ["PHOENIX_COLLECTOR_ENDPOINT"]))
+    )
+    trace.set_tracer_provider(tracer_provider)
+    GoogleADKInstrumentor().instrument()
+else:
+    logger.warning("API_KEY_PHOENIX no definida. Telemetría OTel desactivada.")
+
+# --- 2. Phoenix MCP (bonus partner) ---
 # Servidor oficial: @arizeai/phoenix-mcp (npx). Permite al agente consultar
 # datasets curados (ej. ejemplos de fraudes financieros) y trazas pasadas.
-PHOENIX_BASE_URL = os.getenv("PHOENIX_BASE_URL", "https://app.phoenix.arize.com")
-
-if PHOENIX_API_KEY:
+if PHOENIX_ENABLED:
     phoenix_env = {
         **os.environ,
         "PHOENIX_API_KEY": PHOENIX_API_KEY,
@@ -213,25 +236,6 @@ if PHOENIX_API_KEY:
 else:
     logger.info("Phoenix MCP desactivado (sin API_KEY_PHOENIX).")
     phoenix_toolset = None
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Observabilidad (Arize Phoenix)
-# ──────────────────────────────────────────────────────────────────────────────
-PHOENIX_API_KEY = os.getenv("API_KEY_PHOENIX")
-PHOENIX_ENABLED = bool(PHOENIX_API_KEY)
-
-if PHOENIX_ENABLED:
-    os.environ["PHOENIX_CLIENT_HEADERS"] = f"api_key={PHOENIX_API_KEY}"
-    os.environ["PHOENIX_COLLECTOR_ENDPOINT"] = "https://app.phoenix.arize.com/v1/traces"
-
-    tracer_provider = TracerProvider()
-    tracer_provider.add_span_processor(
-        SimpleSpanProcessor(OTLPSpanExporter(endpoint=os.environ["PHOENIX_COLLECTOR_ENDPOINT"]))
-    )
-    trace.set_tracer_provider(tracer_provider)
-    GoogleADKInstrumentor().instrument()
-else:
-    logger.warning("API_KEY_PHOENIX no definida. Telemetría desactivada.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
