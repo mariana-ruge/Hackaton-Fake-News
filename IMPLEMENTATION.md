@@ -4,10 +4,12 @@
 > Las decisiones de arquitectura viven en `PLAN.md`. Aquí solo se **ejecuta**.
 
 **Repo raíz:** `D:\Trabajos u\Proyectos\agentes-cloud\Hackaton-Fake-News`
+**Branch activa:** `Bright`
 **Dominio:** Fake news financieras (desinformación económica, esquemas Ponzi, promesas de inversión sospechosas).
-**Stack objetivo:** Gemini 2.5 Flash · Google ADK · Vertex AI (ADC) · FastAPI · Streamlit (Cloud Run) · **Firestore (log) + Elastic (memoria semántica)** · **Bright Data MCP** · **Elastic MCP** 🟢 (track) · **Arize Phoenix MCP** (bonus).
+**Stack actual (rama Bright):** Gemini 2.5 Flash · Google ADK · Vertex AI / API key (auth dual) · FastAPI · Streamlit · **Firestore (log) + Elastic (memoria semántica)** · **Elastic MCP** 🟢 (track) · **Bright Data MCP** · **Arize Phoenix MCP** (bonus).
 
 **Track del reto:** 🟢 **Elastic** (`Pick one and build with their MCP server`).
+**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (10 ADRs).
 
 ---
 
@@ -48,47 +50,49 @@
 ---
 
 ## FASE 1 — Conectividad y datos
-- [x] **1.1** `agent/tools/embeddings.py` — Vertex AI `text-embedding-004` (768 dims, cache LRU, retries).
-- [x] **1.2** `scraper.py` — Bright Data Scraping Browser (Playwright + CDP).
-- [x] **1.3** `agent/mcp/local_cache.py` — caché local para iterar sin Elastic.
+- [x] **1.1** `agent/tools/embeddings.py` — embeddings 768 dims agnósticos a Vertex/API key (ver ADR-0006), cache LRU + retries.
+- [x] **1.2** `scraper.py` — Bright Data Scraping Browser (Playwright + CDP). **Queda como respaldo offline** desde la Fase 8.2.
+- [x] **1.3** `agent/mcp/local_cache.py` — caché local (puente histórico, no se usa en producción tras 8.1.7).
 - [x] **1.4** `scripts/setup_firestore.py` — verifica permisos + escribe `config/veritas_settings`.
-- [ ] **1.5** `scripts/setup_elastic_index.py` — **STUB**, implementar inserción real con `elasticsearch-py`.
-- [ ] **1.6** `scripts/seed_factcheckers.py` — **STUB**, implementar inserción real (lista lista pero no se persiste).
-- [ ] **1.7** `agent/mcp/elastic_client.py` — **falta**, conexión + búsqueda híbrida (kNN + BM25).
+- [x] **1.5** `scripts/setup_elastic_index.py` — **REAL** (implementado en 8.1.3): `dense_vector(768)`, idempotente, soporta `--recreate`.
+- [x] **1.6** `scripts/seed_factcheckers.py` — **REAL** (implementado en 8.5.5): escribe `agent/data/factcheckers.json` con 21 dominios curados.
+- [x] **1.7** `agent/mcp/elastic_client.py` — **CREADO** (8.1.7): conexión + `hybrid_search` (kNN + BM25) + `triage` con umbrales + `index_verification` + `get_by_hash`.
 
 ---
 
 ## FASE 2 — Tools del agente (núcleo)
-> Estas tools son el esqueleto del refactor a multi-paso determinista. **Para la entrega actual `main.py` define un único LlmAgent reactivo que cubre todo de forma orgánica.**
+> ✅ Las tools están **implementadas** y se usan desde `agent/pipeline.py` (endpoint `/analizar/multipaso`).
+> El endpoint `/analizar` reactivo del LlmAgent sigue disponible en paralelo (decisión ADR-0010).
 
-- [ ] **2.1** `tools/triage.py` — **STUB**, busca claim en Elastic, decide early-exit.
-- [ ] **2.2** `tools/extractor.py` — **STUB**, refactor mover `scraper.py` aquí.
-- [x] **2.3a** Prompt `prompts/claim_parser.es.txt` — listo.
-- [ ] **2.3b** `tools/claim_parser.py` — **STUB**, cablear el prompt con Gemini.
-- [ ] **2.4** `tools/source_checker.py` — **STUB**.
-- [ ] **2.5** `tools/cross_reference.py` — **STUB**.
-- [x] **2.6a** Prompt `prompts/linguistic.es.txt` — listo.
-- [ ] **2.6b** `tools/linguistic.py` — **STUB**, cablear el prompt con Gemini.
-- [x] **2.7a** Prompt `prompts/verdict.es.txt` — listo.
-- [ ] **2.7b** `tools/verdict.py` — **STUB**, cablear el prompt con Gemini.
-- [ ] **2.8** `tools/persistence.py` — **STUB**. Hoy persistimos en Firestore desde `main.py`.
+- [x] **2.1** `tools/triage.py` — **REAL** (8.5.2): genera embedding, búsqueda híbrida en Elastic, devuelve `early_exit | evidence | fresh`.
+- [x] **2.2** `tools/extractor.py` — **REAL** (8.5.2): si es URL delega en `scraper.py`; si es texto, passthrough.
+- [x] **2.3a** Prompt `prompts/claim_parser.es.txt`.
+- [x] **2.3b** `tools/claim_parser.py` — **REAL** (8.5.2): Gemini con `response_mime_type=application/json`, devuelve lista de claims atómicos.
+- [x] **2.4** `tools/source_checker.py` — **REAL** (8.5.2): consulta `agent/data/factcheckers.json` + heurísticas (TLD sospechoso, spoofing).
+- [x] **2.5** `tools/cross_reference.py` — **REAL** (8.5.2): reusa hits del triage como evidencia. (TODO futuro: Bright Data MCP en línea).
+- [x] **2.6a** Prompt `prompts/linguistic.es.txt`.
+- [x] **2.6b** `tools/linguistic.py` — **REAL** (8.5.2): scoring de alarmismo/sesgo/clickbait + banderas rojas.
+- [x] **2.7a** Prompt `prompts/verdict.es.txt`.
+- [x] **2.7b** `tools/verdict.py` — **REAL** (8.5.2): emite veredicto estructurado + mapeos `etiqueta→categoría` y `confianza→nivel`.
+- [x] **2.8** `tools/persistence.py` — **REAL** (8.1.6): indexa el veredicto en Elastic con embedding (paso [7] del pipeline).
 
 ---
 
 ## FASE 3 — Orquestación del agente
-- [x] **3.1** `main.py` — `root_agent` con GoogleSearch + URL Context + Brave + Fetch.
+- [x] **3.1** `main.py` — `root_agent` con GoogleSearch + URL Context + **Bright Data MCP + Elastic MCP + Phoenix MCP** (Brave/Fetch retirados en 8.2).
 - [x] **3.2** Endpoints FastAPI `/analizar`, `/scrape`, `/health` (lifespan moderno).
 - [x] **3.3** Persistencia automática a Firestore por cada análisis y scrape.
 - [x] **3.4** Telemetría Phoenix instrumentando ADK.
-- [ ] **3.5** **(refactor pendiente)** orquestación multi-paso con triage + early-exit + escalado.
+- [x] **3.5** Orquestación multi-paso con triage + early-exit + degradación elegante — vive en `agent/pipeline.py` y se expone vía `POST /analizar/multipaso` (8.5.4). Decisión documentada en ADR-0010.
 
 ---
 
 ## FASE 4 — Pruebas
-- [x] **4.1** `tests/test_triage.py` — marcado `xfail` hasta que la tool se implemente.
-- [x] **4.2** `tests/test_verdict.py` — marcado `xfail` hasta que la tool se implemente.
+- [x] **4.1** `tests/test_triage.py` — **REAL** (8.5.6): `claim_hash` estable, umbrales coherentes, ping a Elastic con `skipif` por credenciales.
+- [x] **4.2** `tests/test_verdict.py` — **REAL** (8.5.6): cobertura de mapeos y `confianza_a_nivel` con casos parametrizados.
+- [x] **4.2b** `tests/test_source_checker.py` — **NUEVO** (8.5.6): dominio curado, desconocido, sin URL, TLD sospechoso.
 - [ ] **4.3** `tests/fixtures/` — claims reales (titulares económicos verdaderos / falsos / engañosos).
-- [ ] **4.4** Test end-to-end de `/analizar` con un caso real.
+- [ ] **4.4** Test end-to-end de `/analizar/multipaso` con un caso real (requiere credenciales).
 
 ---
 
@@ -96,38 +100,45 @@
 - [x] **5.1** `frontend/app.py` — chat consumiendo `/analizar` con healthcheck en cabecera.
 - [x] **5.2** Estilos custom + chips de estado (Vertex AI, Firestore, proyecto).
 - [x] **5.3** Persistencia visual del análisis y `firestore_doc_id`.
-- [ ] **5.4** Mostrar pasos del agente en vivo (requiere refactor multi-paso de la Fase 3.5).
+- [ ] **5.4** Toggle reactivo/multipaso + render del desglose por pasos. **→ se aborda en Fase 9.2**.
 
 ---
 
 ## FASE 6 — Despliegue (Google Cloud)
+> Sub-pasos detallados en **Fase 9.4**. Se mantiene este bloque como índice rápido.
+
 - [x] **6.1** `Dockerfile` (Playwright 1.49 + Python + uvicorn).
 - [ ] **6.2** `cloudbuild.yaml` para Cloud Run.
-- [ ] **6.3** Secret Manager para `API_KEY_PHOENIX`, `BRIGHT_DATA_WS_URL`, `BRAVE_API_KEY`.
-- [ ] **6.4** Desplegar el agente a Vertex AI Agent Engine.
-- [ ] **6.5** Cloud Run para el backend FastAPI y otro servicio para Streamlit.
+- [ ] **6.3** Secret Manager para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
+- [ ] **6.4** Desplegar el agente a Vertex AI Agent Engine (solo modo A — ADC, ver ADR-0006).
+- [ ] **6.5** Cloud Run para el backend FastAPI + servicio aparte para Streamlit.
 - [ ] **6.6** Verificación end-to-end con URL pública.
 
 ---
 
 ## FASE 7 — Entrega del concurso
+> Sub-pasos detallados en **Fase 9.5**. Se mantiene este bloque como checklist final.
+
 - [ ] **7.1** README con GIF/captura + URL hosted.
-- [x] **7.2** `LICENSE` Apache 2.0 visible en *About*.
-- [ ] **7.3** Demo ~3 min: caso viral económico → análisis → veredicto.
-- [ ] **7.4** Formulario Devpost.
-- [ ] **7.5** Track: agente funcional con MCP de partner.
+- [x] **7.2** `LICENSE` Apache 2.0 visible en *About* del repo.
+- [ ] **7.3** Demo ~3 min: caso Ponzi/pseudo-trader → veredicto → repetición para mostrar early-exit.
+- [ ] **7.4** Formulario Devpost completado.
+- [ ] **7.5** Track del envío: 🟢 **Elastic** (ver ADR-0004).
 
 ---
 
-## ⚠️ Riesgos abiertos para el reto
+## ⚠️ Riesgos del reto — estado actual
 
-| ID | Riesgo | Estado | Mitigación |
+| ID | Riesgo | Estado | Notas |
 |---|---|---|---|
-| **R1** | Ningún MCP usado es de partner del reto | 🟡 En progreso | Track elegido: **Elastic** (paso [0]/[7]). Bonus: **Arize Phoenix MCP** ya con Phoenix activo |
-| **R2** | El agente no es multi-paso real | 🔴 Abierto | Implementar `tools/triage.py` → `verdict.py` + orquestador en `main.py` (Fase 8) |
-| **R3** | No hay caché semántica con Elastic | 🔴 Abierto | Resolver en Fase 8 (triage + index real) |
-| **R4** | README ya alineado a finanzas | ✅ Resuelto | — |
-| **R5** | Brave + Fetch no aportan al track | 🟡 A retirar | Sustituir por Bright Data MCP oficial (cubre fetch+search) |
+| **R1** | Ningún MCP usado es de partner del reto | ✅ **Resuelto en código** | Elastic MCP (track) + Phoenix MCP (bonus) integrados como `MCPToolset`. Falta validar con cluster real. |
+| **R2** | El agente no es multi-paso real | ✅ **Resuelto** | Pipeline determinista en `agent/pipeline.py` expuesto por `/analizar/multipaso`. Devuelve `pasos_ejecutados`. |
+| **R3** | No hay caché semántica con Elastic | ✅ **Resuelto en código** | Triage con umbrales 0.92/0.75 + index automático. Falta validar con cluster real. |
+| **R4** | README alineado a finanzas | ✅ Resuelto | — |
+| **R5** | Brave + Fetch no aportan al track | ✅ Resuelto | Removidos en 8.2. Bright Data MCP los cubre. |
+| **R6** | Sin credenciales reales, todo está sin validar end-to-end | 🟡 **Pendiente** | Bloqueante para la demo y el despliegue (Fase 6). |
+| **R7** | Sin URL pública aún | 🟡 Pendiente | Fase 6 (Cloud Run + Agent Engine). |
+| **R8** | Sin video de demo ni submission Devpost | 🟡 Pendiente | Fase 7. |
 
 ---
 
@@ -187,14 +198,48 @@
 
 ---
 
-## Orden de ataque sugerido (próximos pasos)
+## FASE 9 — Pulido y entrega (lo que queda)
 
-1. **8.1.1 + 8.1.3** — Crear cluster Elastic e implementar `setup_elastic_index.py`. (2 h)
-2. **8.1.4 + 8.1.5** — Cablear Elastic MCP en `main.py` y `triage.py`. (3 h)
-3. **8.2.1 + 8.2.2** — Migrar a Bright Data MCP. (3 h)
-4. **8.3.x** — Phoenix MCP + dataset. (2 h)
-5. **8.5.x** — Refactor multi-paso. (1 día)
-6. **Fase 6** — Despliegue.
-7. **Fase 7** — Demo + Devpost.
+### 9.1 Acciones humanas (paralelizables)
+- [ ] **9.1.1** `gcloud auth application-default login` + `set-quota-project hackaton-498600`.
+- [ ] **9.1.2** Habilitar APIs (`aiplatform`, `run`, `secretmanager`, `cloudbuild`, `artifactregistry`, `firestore`).
+- [ ] **9.1.3** Crear cluster en **Elastic Cloud** (free trial) y poner `ELASTIC_API_KEY` + `ELASTIC_URL`/`CLOUD_ID` en `.env`.
+- [ ] **9.1.4** Cuenta **Bright Data** + zona Web Unlocker + `BRIGHTDATA_API_TOKEN` en `.env`.
+- [ ] **9.1.5** (Opcional) Dataset en **Arize Phoenix** con ~10 ejemplos curados de fraudes financieros.
 
-**Tiempo total estimado de la Fase 8:** ~3 días de trabajo enfocado.
+### 9.2 Frontend que muestre los pasos del pipeline
+- [ ] **9.2.1** `frontend/app.py` → toggle "Modo: reactivo / multipaso".
+- [ ] **9.2.2** Render del desglose: `pasos_ejecutados`, `triage` (con badge de early-exit), `fuente`, `linguistico`, evidencias.
+- [ ] **9.2.3** Mostrar `etiqueta` con color (verde/ámbar/rojo) y `confianza_nivel`.
+
+### 9.3 Validación end-to-end (smoke test — paso "A" del plan original)
+- [ ] **9.3.1** Arrancar backend + frontend localmente con `.env` real.
+- [ ] **9.3.2** Validar `/health`: `auth_mode`, `vertex_ai`, `firestore`, `elastic_mcp`, `brightdata_mcp`, `phoenix_mcp` ≥ "connected" en lo crítico.
+- [ ] **9.3.3** `/analizar/multipaso` con un Ponzi típico → ver veredicto + `pasos_ejecutados`.
+- [ ] **9.3.4** Repetir el mismo claim → ver `cacheado: true` y latencia <2 s.
+- [ ] **9.3.5** Confirmar que Firestore tiene los logs y Elastic tiene el doc.
+
+### 9.4 Despliegue (Fase 6 reorganizada)
+- [ ] **9.4.1** `cloudbuild.yaml` para Cloud Run (backend FastAPI).
+- [ ] **9.4.2** `Dockerfile` para Streamlit (separar del backend o usar el mismo con sidecar).
+- [ ] **9.4.3** Configurar **Secret Manager** para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
+- [ ] **9.4.4** Desplegar backend en **Cloud Run** (US-central1).
+- [ ] **9.4.5** Desplegar frontend en **Cloud Run** apuntando a la URL del backend.
+- [ ] **9.4.6** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC).
+- [ ] **9.4.7** Verificar URL pública funcionando.
+
+### 9.5 Entrega Devpost (Fase 7)
+- [ ] **9.5.1** Pulir README con GIF/captura + URL hosted.
+- [ ] **9.5.2** Grabar demo ~3 min: caso Ponzi → análisis → repetir para mostrar early-exit.
+- [ ] **9.5.3** Subir video (YouTube/Vimeo).
+- [ ] **9.5.4** Completar formulario Devpost (URL repo + URL hosted + video + track Elastic).
+
+### Tiempo estimado
+| Bloque | Estimado |
+|---|---|
+| 9.1 Apertura de cuentas | ~30 min |
+| 9.2 Frontend multi-paso | ~1.5 h |
+| 9.3 Smoke test | ~30 min |
+| 9.4 Despliegue | ~3 h |
+| 9.5 Demo + Devpost | ~3 h |
+| **Total** | **~1 día** |
