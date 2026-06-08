@@ -255,7 +255,7 @@ El plan de implementación detallado, por fases y con criterios de "hecho", est�
 - [x] Decisiones de arquitectura (`PLAN.md`)
 - [x] Licencia Apache 2.0
 - [x] Cimientos del repo
-- [ ] Conectividad MCP (Bright Data + Elastic)
+- [x] Conectividad MCP (Bright Data + Elastic)
 - [ ] Tools del agente
 - [ ] Orquestación
 - [ ] Frontend Streamlit

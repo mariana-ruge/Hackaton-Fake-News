@@ -1,4 +1,8 @@
-"""Async embedding helper using Google Generative AI (text-embedding-004)."""
+"""Async embedding helper usando Vertex AI (text-embedding-004) vía google-genai.
+
+El proyecto se autentica con Application Default Credentials (ADC) sobre Vertex
+AI, así que NO usamos API key. Mantiene la API pública `get_embedding`.
+"""
 
 from __future__ import annotations
 
@@ -8,30 +12,54 @@ import os
 from collections import OrderedDict
 
 import numpy as np
-import google.generativeai as genai
 from google.api_core import exceptions as gcp_exceptions
 
 
-_MODEL = "models/text-embedding-004"
-_DIMENSION = 768
+_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
+_DIMENSION = int(os.getenv("EMBEDDING_DIMS", "768"))
 _MAX_CACHE = 100
 _MAX_RETRIES = 3
 
 _cache: "OrderedDict[str, list[float]]" = OrderedDict()
-_configured = False
+_client = None
 _lock = asyncio.Lock()
 
 
-def _configure() -> None:
-    """Configure the genai SDK with the API key from the environment."""
-    global _configured
-    if _configured:
-        return
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY no está definida en el entorno.")
-    genai.configure(api_key=api_key)
-    _configured = True
+def _env_value(name: str, default: str | None = None) -> str | None:
+    value = os.getenv(name, default)
+    if value is None:
+        return None
+    return value.strip().strip('"').strip("'")
+
+
+def _get_client():
+    """Crea (una vez) el cliente google-genai apuntando a Vertex AI con ADC."""
+    global _client
+    if _client is not None:
+        return _client
+
+    from google import genai
+
+    project = _env_value("PROJECT_ID") or _env_value("GOOGLE_CLOUD_PROJECT")
+    location = _env_value("VERTEX_LOCATION") or _env_value(
+        "GOOGLE_CLOUD_LOCATION", "us-central1"
+    )
+
+    _client = genai.Client(vertexai=True, project=project, location=location)
+    return _client
+
+
+def _embed_sync(text: str) -> list[float]:
+    """Llamada síncrona a Vertex AI embeddings (se ejecuta en un thread)."""
+    from google.genai import types as genai_types
+
+    client = _get_client()
+    response = client.models.embed_content(
+        model=_MODEL,
+        contents=text,
+        config=genai_types.EmbedContentConfig(output_dimensionality=_DIMENSION),
+    )
+    return list(response.embeddings[0].values)
 
 
 def _hash_text(text: str) -> str:
@@ -70,8 +98,6 @@ async def get_embedding(text: str) -> list[float]:
     if not text or not text.strip():
         raise ValueError("`text` no puede estar vacío.")
 
-    _configure()
-
     key = _hash_text(text)
     cached = _cache_get(key)
     if cached is not None:
@@ -80,15 +106,9 @@ async def get_embedding(text: str) -> list[float]:
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES):
         try:
-            # google-generativeai's embed_content es síncrono; lo movemos
-            # a un thread para no bloquear el event loop.
-            response = await asyncio.to_thread(
-                genai.embed_content,
-                model=_MODEL,
-                content=text,
-                output_dimensionality=_DIMENSION,
-            )
-            raw = response["embedding"] if isinstance(response, dict) else response.embedding
+            # embed_content es síncrono; lo movemos a un thread para no
+            # bloquear el event loop.
+            raw = await asyncio.to_thread(_embed_sync, text)
             vector = _normalize(list(raw))
 
             async with _lock:
