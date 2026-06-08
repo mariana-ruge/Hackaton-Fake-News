@@ -268,6 +268,17 @@ Los tests de tools aún en stub están marcados como `xfail` — `pytest` no fal
 
 ---
 
+## 📚 Documentación
+
+Antes de tomar decisiones arquitectónicas, consulta:
+
+- **[`docs/architecture.md`](./docs/architecture.md)** — vista actual del sistema con diagramas mermaid (flujo, datos, triage, componentes, auth).
+- **[`docs/adr/`](./docs/adr/)** — historial de decisiones arquitectónicas (ADRs) con su porqué. Léelo cuando dudes de *"¿por qué se hizo así?"*.
+- **[`PLAN.md`](./PLAN.md)** — decisiones de alto nivel y arquitectura objetivo.
+- **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)** — hoja de ruta operativa por fases.
+
+> ⚠️ Antes de implementar algo que afecte a más de un módulo, sea difícil de revertir, introduzca una dependencia importante, establezca un patrón nuevo, o que en 3 meses alguien preguntaría *"¿por qué hicimos esto así?"* → **propón un ADR** siguiendo la plantilla en [`docs/adr/README.md`](./docs/adr/README.md).
+
 ## 🗺️ Roadmap
 
 El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
