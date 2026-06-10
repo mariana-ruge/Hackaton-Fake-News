@@ -194,7 +194,7 @@
 - [ ] **7.3** Demo ~3 min: caso Ponzi/pseudo-trader → veredicto → repetición para mostrar early-exit. Subir a YouTube/Vimeo.
 - [ ] **7.4** Formulario Devpost completado (URL repo + URL hosted + video + track).
 - [ ] **7.5** Track del envío: 🟢 **Elastic** (ver ADR-0004).
-- [ ] **7.6** 🔴 **Merge `Bright` → `main`** coordinado con Mariana: los jueces ven `main` (rama por defecto). Hacerlo después del smoke test (4.5).
+- [~] **7.6** **Merge `Bright` → `main`**: hecho dos veces (PR #1 `7a90b5a` + merge `d5aeb53` del 2026-06-10). ⚠️ Cada commit nuevo en `Bright` reabre la brecha — **repetir el merge como último paso antes de enviar a Devpost**.
 
 ---
 
