@@ -56,28 +56,34 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
                             │ HTTPS
 ┌───────────────────────────▼──────────────────────────────────┐
 │  Backend · FastAPI                                            │
-│  Endpoints:  /analizar  /scrape  /health                      │
-└───────────────────────────┬──────────────────────────────────┘
-                            │
-┌───────────────────────────▼──────────────────────────────────┐
-│  Agente · Google ADK (LlmAgent + Gemini 2.5 Flash)            │
-│  Sub-agentes:                                                 │
-│    • Google Search                                            │
-│    • URL Context                                              │
-│  Tools MCP:                                                   │
-│    • Brave Search (opcional)                                  │
-│    • Fetch (mcp-server-fetch)                                 │
-│  Scraping externo: Bright Data Scraping Browser (CDP)         │
-└───┬──────────────────────────────┬──────────────────┬────────┘
-    │                              │                  │
-┌───▼─────────┐         ┌──────────▼─────┐   ┌────────▼────────┐
-│  Firestore  │         │  Vertex AI     │   │  Arize Phoenix  │
-│  análisis + │         │  embeddings    │   │  trazas OTel    │
-│  scrapes    │         │  (768 dims)    │   │                 │
-└─────────────┘         └────────────────┘   └─────────────────┘
+│  /analizar  /analizar/multipaso  /scrape  /historial  /health │
+└──────────┬───────────────────────────────┬───────────────────┘
+           │                               │
+┌──────────▼──────────────┐   ┌────────────▼─────────────────────┐
+│ Agente REACTIVO         │   │ Pipeline MULTIPASO (determinista)│
+│ LlmAgent · Gemini 2.5   │   │ [0] triage → early-exit <2s      │
+│ Sub-agentes:            │   │ [1] extractor   [2] claims      │
+│  • Google Search        │   │ [3] fuente      [4] cross-ref   │
+│  • URL Context          │   │ [5] lingüístico [6] verdict     │
+│ + los 3 MCPs ↓          │   │ [7] persist     (ADR-0010)      │
+└──────────┬──────────────┘   └────────────┬─────────────────────┘
+           └──────────────┬────────────────┘
+    ┌─────────────────────┼──────────────────────┐
+┌───▼──────────┐  ┌───────▼────────┐  ┌──────────▼─────┐
+│ 🟢 Elastic   │  │ Bright Data    │  │ Arize Phoenix  │
+│ MCP (track)  │  │ MCP            │  │ MCP (bonus)    │
+│ triage +     │  │ scraping +     │  │ datasets +     │
+│ memoria      │  │ búsqueda web   │  │ trazas OTel    │
+└──────────────┘  └────────────────┘  └────────────────┘
+        │
+┌───────▼─────┐   ┌──────────────┐
+│  Firestore  │   │  Vertex AI   │
+│  log de     │   │  Gemini +    │
+│  requests   │   │  embeddings  │
+└─────────────┘   └──────────────┘
 ```
 
-> El agente vive en `main.py` como un `LlmAgent` con un prompt especializado en finanzas. La carpeta `agent/tools/` contiene el **esqueleto del refactor multi-paso** (triage → extractor → claim parser → verdict) que es la siguiente iteración del proyecto.
+> Dos modos de análisis conviven (ver [ADR-0010](./docs/adr/0010-pipeline-determinista-vs-llm-reactivo.md)): el **reactivo** (`/analizar`, el LLM decide qué tools usar) y el **multipaso determinista** (`/analizar/multipaso`, ejecuta los 8 pasos en orden con early-exit garantizado — la estrella de la demo). Diagramas detallados en [`docs/architecture.md`](./docs/architecture.md).
 
 ---
 
@@ -103,18 +109,16 @@ El agente recibe el texto y ejecuta el siguiente flujo conceptual (definido en s
 
 | Capa | Tecnología |
 |---|---|
-| Razonamiento | **Gemini 2.5 Flash** (Vertex AI) |
-| Framework de agentes | **Google ADK** |
-| Autenticación | **ADC** (Application Default Credentials) — la organización bloquea API keys |
+| Razonamiento | **Gemini 2.5 Flash** |
+| Framework de agentes | **Google ADK** (LlmAgent reactivo) + **pipeline determinista propio** (`agent/pipeline.py`) |
+| Autenticación | **Dual**: Vertex AI/ADC o API key de AI Studio (ver sección siguiente, ADR-0006) |
 | Backend | **FastAPI + Uvicorn** |
 | Frontend | **Streamlit** (chat) |
-| Persistencia | **Firestore** (análisis + scrapes) |
-| Scraping | **Bright Data Scraping Browser** (CDP/WebSocket + Playwright) |
 | 🟢 **Track partner del reto** | **Elastic MCP** (triage + memoria semántica) |
-| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · **Arize Phoenix MCP** (datasets + trazas) |
-| Persistencia | **Firestore** (log operativo) · **Elastic** (memoria semántica con embeddings) |
+| MCPs adicionales | **Bright Data MCP** (scraping + búsqueda web) · **Arize Phoenix MCP** (datasets + trazas) |
+| Persistencia | **Firestore** (log operativo) · **Elastic** (memoria semántica con embeddings, TTL) |
 | Observabilidad | **Arize Phoenix** + OpenTelemetry |
-| Embeddings | **Vertex AI** `text-embedding-004` (768 dims) |
+| Embeddings | `text-embedding-004` (768 dims, agnóstico al modo de auth) |
 | Despliegue | **Cloud Run** + **Vertex AI Agent Engine** |
 | Lenguaje | Python 3.11+ |
 
@@ -126,42 +130,53 @@ El agente recibe el texto y ejecuta el siguiente flujo conceptual (definido en s
 Hackaton-Fake-News/
 ├── LICENSE                     # Apache 2.0
 ├── README.md
-├── PLAN.md                     # decisiones de arquitectura
-├── IMPLEMENTATION.md           # hoja de ruta
-├── .env.example                # plantilla de credenciales
+├── PLAN.md                     # visión y decisiones de alto nivel
+├── IMPLEMENTATION.md           # hoja de ruta por fases (estado real)
+├── .env.example                # plantilla de credenciales (auth dual)
 ├── requirements.txt
-├── Dockerfile                  # Cloud Run (Playwright 1.49 + uvicorn)
+├── Dockerfile                  # backend (Playwright + Node 20 + uvicorn)
 │
-├── main.py                     # FastAPI + ADK root_agent  ← núcleo actual
-├── scraper.py                  # Bright Data Scraping Browser
-├── esquema_datos.json          # mapping Elastic (referencia futura)
+├── main.py                     # FastAPI + agente reactivo + endpoints
+├── scraper.py                  # Scraping Browser (respaldo legado)
+│
+├── docs/
+│   ├── architecture.md         # diagramas mermaid de la vista actual
+│   └── adr/                    # 12 decisiones arquitectónicas con su porqué
 │
 ├── agent/
-│   ├── tools/                  # esqueleto multi-paso (en progreso)
-│   │   ├── embeddings.py       # ✅ Vertex AI text-embedding-004
-│   │   ├── triage.py           # 🟡 stub
-│   │   ├── extractor.py        # 🟡 stub
-│   │   ├── claim_parser.py     # 🟡 stub
-│   │   ├── source_checker.py   # 🟡 stub
-│   │   ├── cross_reference.py  # 🟡 stub
-│   │   ├── linguistic.py       # 🟡 stub
-│   │   ├── verdict.py          # 🟡 stub
-│   │   └── persistence.py      # 🟡 stub
+│   ├── genai_client.py         # cliente Gemini dual ADC/API-key (ADR-0006)
+│   ├── llm_client.py           # prompts plantilla → JSON estructurado
+│   ├── pipeline.py             # orquestador multipaso [0]..[7] (ADR-0010)
+│   ├── tools/                  # ✅ todas implementadas
+│   │   ├── triage.py           # [0] early-exit semántico (ADR-0007)
+│   │   ├── extractor.py        # [1] Bright Data MCP → scraper → texto
+│   │   ├── claim_parser.py     # [2] claims atómicos (Gemini JSON)
+│   │   ├── source_checker.py   # [3] lista curada + heurísticas
+│   │   ├── cross_reference.py  # [4] memoria Elastic + búsqueda web
+│   │   ├── linguistic.py       # [5] alarmismo/clickbait/banderas rojas
+│   │   ├── verdict.py          # [6] veredicto estructurado
+│   │   ├── persistence.py      # [7] indexa en Elastic con embedding
+│   │   └── embeddings.py       # 768 dims, cache LRU, agnóstico al auth
 │   ├── mcp/
-│   │   └── local_cache.py      # caché local (puente hasta Elastic)
+│   │   ├── elastic_client.py   # conexión + búsqueda kNN/BM25 + TTL
+│   │   ├── brightdata_client.py# cliente MCP directo (ADR-0011)
+│   │   └── local_cache.py      # respaldo offline (no se usa en prod)
+│   ├── data/
+│   │   └── factcheckers.json   # 21 dominios curados (medios + reguladores)
 │   └── prompts/                # claim_parser.es · linguistic.es · verdict.es
 │
 ├── frontend/
 │   └── app.py                  # chat Streamlit
 │
 ├── scripts/
-│   ├── setup_firestore.py      # ✅ permisos + config doc
-│   ├── setup_elastic_index.py  # 🟡 stub (mapping definido)
-│   └── seed_factcheckers.py    # 🟡 stub (lista definida)
+│   ├── setup_firestore.py      # permisos + config doc
+│   ├── setup_elastic_index.py  # índice verified_claims (dense_vector 768)
+│   └── seed_factcheckers.py    # genera agent/data/factcheckers.json
 │
 └── tests/
-    ├── test_triage.py          # xfail hasta implementar la tool
-    └── test_verdict.py         # xfail hasta implementar la tool
+    ├── test_triage.py          # hash, umbrales, TTL (+ ping con skipif)
+    ├── test_verdict.py         # mapeos deterministas
+    └── test_source_checker.py  # dominios curados y heurísticas
 ```
 
 ---
@@ -170,10 +185,12 @@ Hackaton-Fake-News/
 
 ### Requisitos previos
 - **Python 3.11+** (el proyecto usa wheels compatibles con 3.11–3.14)
-- **gcloud CLI** ([instalación](https://cloud.google.com/sdk/docs/install))
-- Cuenta en **Bright Data** (Scraping Browser endpoint)
-- Cuenta en **Arize Phoenix** (API key)
-- Acceso a un proyecto de **Google Cloud** con Vertex AI y Firestore habilitados
+- **Node.js 18+** (los 3 servidores MCP se lanzan con `npx`)
+- **gcloud CLI** ([instalación](https://cloud.google.com/sdk/docs/install)) — solo para el modo A (ADC)
+- Cluster de **Elasticsearch** (Elastic Cloud free trial o self-hosted) — 🟢 track del reto
+- Cuenta en **Bright Data** (API token + zona Web Unlocker)
+- Cuenta en **Arize Phoenix** (API key) — opcional, habilita telemetría + bonus MCP
+- Proyecto de **Google Cloud** con Vertex AI y Firestore — solo para el modo A
 
 ### Pasos
 
@@ -244,9 +261,13 @@ python scripts/seed_factcheckers.py
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-- `POST /analizar` — recibe `{"texto_noticia": "..."}` y devuelve el análisis.
-- `POST /scrape`   — recibe `{"url": "..."}` y devuelve el texto limpio.
-- `GET  /health`   — estado de Vertex AI, Firestore, Phoenix, MCPs.
+| Endpoint | Qué hace |
+|---|---|
+| `POST /analizar` | Análisis **reactivo**: el LLM decide qué tools usar. Acepta `session_id` opcional para conversación continua |
+| `POST /analizar/multipaso` | Pipeline **determinista** [0]..[7]: devuelve `etiqueta`, `confianza`, `pasos_ejecutados`, evidencias y `cacheado` (early-exit <2 s si el claim ya fue verificado) |
+| `POST /scrape` | Extrae una URL como markdown limpio vía Bright Data MCP |
+| `GET /historial?limit=N` | Últimos N análisis desde Firestore |
+| `GET /health` | Modo de auth, Vertex AI, Firestore y estado de los 3 MCPs |
 
 ### Frontend (Streamlit)
 ```bash
@@ -258,7 +279,7 @@ Abre `http://localhost:8501` y empieza a chatear. El frontend asume que el backe
 ```bash
 pytest -q
 ```
-Los tests de tools aún en stub están marcados como `xfail` — `pytest` no fallará.
+Tests deterministas (sin credenciales): hash del triage, umbrales, TTL, mapeos del verdict y heurísticas del source checker. El ping a Elastic se salta automáticamente si no hay credenciales.
 
 ---
 
@@ -286,12 +307,14 @@ El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 - [x] Cimientos del repo + LICENSE
 - [x] Agente reactivo con ADK + GoogleSearch + URL Context
 - [x] Backend FastAPI + Firestore (log) + telemetría Phoenix
-- [x] Frontend Streamlit
-- [x] Bright Data Scraping Browser como puente provisional
-- [ ] 🟢 **Track Elastic**: Elastic MCP + índice `verified_claims` + triage semántico
-- [ ] Migrar de Brave + Fetch + Scraping Browser → **Bright Data MCP oficial**
-- [ ] **Arize Phoenix MCP** como bonus partner (consulta de datasets/trazas)
-- [ ] Refactor a flujo **multi-paso determinista** (`agent/tools/`)
+- [x] Frontend Streamlit (chat reactivo)
+- [x] 🟢 **Track Elastic**: Elastic MCP + índice `verified_claims` + triage semántico con early-exit (falta solo el cluster real)
+- [x] **Bright Data MCP** sustituye a Brave + Fetch + Scraping Browser
+- [x] **Arize Phoenix MCP** como bonus partner
+- [x] Pipeline **multi-paso determinista** (`/analizar/multipaso`)
+- [x] Auth dual ADC / API key
+- [ ] Frontend: vista del pipeline multipaso (pasos en vivo + early-exit)
+- [ ] Smoke test end-to-end con credenciales reales
 - [ ] Despliegue en Cloud Run + Agent Engine
 - [ ] Demo + entrega Devpost
 
