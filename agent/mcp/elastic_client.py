@@ -80,8 +80,21 @@ class ElasticClient:
             return False
 
     # ──────────────────────────────────────────────────────────────────────
-    # Búsqueda híbrida (triage)
+    # Búsqueda para el triage
     # ──────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _is_expired(source: dict[str, Any]) -> bool:
+        """True si el doc superó su `ttl_days` desde `verified_at`."""
+        verified_at = source.get("verified_at")
+        if not verified_at:
+            return False
+        try:
+            ts = datetime.fromisoformat(str(verified_at).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        ttl = int(source.get("ttl_days") or DEFAULT_TTL_DAYS)
+        return (datetime.now(timezone.utc) - ts).days > ttl
+
     def hybrid_search(
         self,
         claim_text: str,
@@ -90,40 +103,61 @@ class ElasticClient:
         top_k: int = DEFAULT_TOP_K,
         language: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Búsqueda híbrida kNN + BM25 sobre `verified_claims`.
+        """Recupera candidatos para el triage.
 
-        Devuelve los hits con `_score` combinado y el `_source` completo.
+        ⚠️ Calibración de scores (ver ADR-0007):
+        - La DECISIÓN (early-exit/evidence) usa SOLO el score kNN. Con
+          `similarity: cosine`, Elasticsearch lo normaliza a [0, 1]
+          (`(1 + cos) / 2`), compatible con los umbrales 0.92 / 0.75.
+        - El match léxico BM25 NO participa en el umbral — su score no está
+          acotado (5, 10, 20+) y dispararía early-exits falsos. Solo se usa
+          para traer hits complementarios como evidencia, con `_score: 0.0`.
+        - Los docs vencidos por `ttl_days` se descartan (cache con expiración).
         """
         es = self.connect()
-        knn = {
+        lang_filter = [{"term": {"language": language}}] if language else []
+
+        knn: dict[str, Any] = {
             "field": "claim_embedding",
             "query_vector": claim_embedding,
             "k": top_k,
             "num_candidates": max(50, top_k * 10),
         }
-        query: dict[str, Any] = {"match": {"claim_text": claim_text}}
-        if language:
-            query = {
-                "bool": {
-                    "must": [query],
-                    "filter": [{"term": {"language": language}}],
-                }
-            }
+        if lang_filter:
+            knn["filter"] = lang_filter
 
         try:
-            resp = es.search(
-                index=self.index,
-                knn=knn,
-                query=query,
-                size=top_k,
-            )
+            knn_resp = es.search(index=self.index, knn=knn, size=top_k)
         except NotFoundError:
             logger.warning("Índice '%s' no existe — ejecuta scripts/setup_elastic_index.py", self.index)
             return []
 
-        hits = []
-        for h in resp.get("hits", {}).get("hits", []):
-            hits.append({"_score": h["_score"], **h["_source"]})
+        hits: list[dict[str, Any]] = []
+        seen_hashes: set[str] = set()
+        for h in knn_resp.get("hits", {}).get("hits", []):
+            src = h["_source"]
+            if self._is_expired(src):
+                continue
+            hits.append({"_score": h["_score"], **src})
+            if src.get("claim_hash"):
+                seen_hashes.add(src["claim_hash"])
+
+        # BM25 complementario: solo aporta evidencia, nunca decide el umbral.
+        bm25_query: dict[str, Any] = {"match": {"claim_text": claim_text}}
+        if lang_filter:
+            bm25_query = {"bool": {"must": [bm25_query], "filter": lang_filter}}
+        try:
+            bm25_resp = es.search(index=self.index, query=bm25_query, size=top_k)
+            for h in bm25_resp.get("hits", {}).get("hits", []):
+                src = h["_source"]
+                if src.get("claim_hash") in seen_hashes or self._is_expired(src):
+                    continue
+                hits.append({"_score": 0.0, "_bm25_score": h["_score"], **src})
+        except NotFoundError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BM25 complementario falló (no bloqueante): %s", exc)
+
         return hits
 
     def triage(

@@ -428,7 +428,11 @@ async def analizar_noticia(query: NewsQuery):
     Flujo:
       [0] Triage semántico en Elastic. Si `score >= 0.92` → EARLY EXIT (cacheado).
       [1..6] Si no hay match fuerte, el agente LLM hace el análisis completo.
-      [7] El veredicto se guarda en Firestore (log) y se intenta indexar en Elastic.
+      [7] El análisis se guarda en Firestore (log operativo).
+
+    Nota: este endpoint NO indexa en Elastic. El índice `verified_claims`
+    solo recibe veredictos estructurados del pipeline (/analizar/multipaso);
+    indexar aquí texto libre con placeholders envenenaría el caché del triage.
     """
     user_id = "api_user"
     session_id = "default_session"
@@ -523,26 +527,9 @@ async def analizar_noticia(query: NewsQuery):
             },
         )
 
-        # ── [7b] Index del veredicto en Elastic (best-effort) ─────────────
-        elastic_doc_id: str | None = None
-        if elastic_toolset is not None:
-            try:
-                from agent.tools.persistence import guardar_veredicto
-                elastic_doc_id = await guardar_veredicto(
-                    claim_text=query.texto_noticia,
-                    verdict_score=0,                         # TODO Fase 8.5: extraer del LLM
-                    category="no_verificable",               # TODO Fase 8.5
-                    confidence="media",                      # TODO Fase 8.5
-                    reasoning=respuesta_final,
-                    language="es",
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("[/analizar] index en Elastic falló: %s", exc)
-
         return JSONResponse({
             "analisis": respuesta_final,
             "firestore_doc_id": doc_id,
-            "elastic_doc_id": elastic_doc_id,
             "triage": triage_info,
         })
 

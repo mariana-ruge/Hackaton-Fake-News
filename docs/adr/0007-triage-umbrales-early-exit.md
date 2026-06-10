@@ -1,9 +1,19 @@
 # ADR-0007: Triage con umbrales 0.92 / 0.75 y early-exit determinista
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-06-10)
 - **Date:** 2026-06-05
 - **Deciders:** Cristian Hernández
 - **Tags:** agente, datos, performance
+
+> **Enmienda 2026-06-10 — calibración del score:** la implementación inicial
+> combinaba kNN + BM25 en una sola query y comparaba el `_score` resultante
+> contra los umbrales. Eso era un bug: el score BM25 **no está acotado**
+> (5, 10, 20+), así que casi cualquier match léxico superaba 0.92 y disparaba
+> early-exits falsos. La decisión ahora usa **solo el score kNN**, que con
+> `similarity: cosine` Elasticsearch normaliza a `[0, 1]` (`(1+cos)/2`).
+> BM25 se mantiene como query complementaria que aporta hits de evidencia
+> con `_score: 0.0` (nunca decide el umbral). Además se respeta `ttl_days`:
+> los documentos vencidos se descartan en la recuperación.
 
 ## Contexto
 

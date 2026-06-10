@@ -30,6 +30,23 @@ def test_umbrales_dentro_de_rango_valido():
     assert 0.0 < EVIDENCE_THRESHOLD < EARLY_EXIT_THRESHOLD < 1.0
 
 
+def test_doc_vigente_no_expira():
+    from datetime import datetime, timedelta, timezone
+    reciente = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    assert ElasticClient._is_expired({"verified_at": reciente, "ttl_days": 30}) is False
+
+
+def test_doc_vencido_expira():
+    from datetime import datetime, timedelta, timezone
+    viejo = (datetime.now(timezone.utc) - timedelta(days=45)).isoformat()
+    assert ElasticClient._is_expired({"verified_at": viejo, "ttl_days": 30}) is True
+
+
+def test_doc_sin_fecha_no_expira():
+    # Tolerancia: si no hay verified_at no podemos juzgar; mejor no descartar.
+    assert ElasticClient._is_expired({"ttl_days": 30}) is False
+
+
 @pytest.mark.skipif(
     not (os.getenv("ELASTIC_API_KEY") and (os.getenv("ELASTIC_URL") or os.getenv("ELASTIC_CLOUD_ID"))),
     reason="Sin credenciales de Elastic — saltando test de integración",
