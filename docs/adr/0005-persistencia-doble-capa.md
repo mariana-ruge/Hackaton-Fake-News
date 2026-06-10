@@ -1,9 +1,19 @@
 # ADR-0005: Persistencia doble capa — Firestore (log) + Elastic (memoria semántica)
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-06-10)
 - **Date:** 2026-06-07
 - **Deciders:** Cristian Hernández, Mariana Ruge
 - **Tags:** datos, persistencia
+
+> **Enmienda 2026-06-10 — política de escritura en Elastic:** la primera
+> implementación hacía que `/analizar` (reactivo) también indexara en
+> `verified_claims`, con placeholders (`verdict_score=0`,
+> `category=no_verificable`) porque el LLM reactivo no produce veredicto
+> estructurado. Eso **envenenaba el caché**: un claim repetido hacía
+> early-exit devolviendo esa basura como veredicto autoritativo (hallazgo
+> C2 de la auditoría). Regla desde entonces: **solo el pipeline multipaso
+> escribe en `verified_claims`** (produce veredictos estructurados de
+> verdad); `/analizar` se limita al log de Firestore. Commit `4d6ae6f`.
 
 ## Contexto
 

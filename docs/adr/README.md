@@ -83,6 +83,7 @@ La elección, en una frase si es posible.
 | [0008](0008-bright-data-mcp-reemplaza-brave-fetch.md) | Bright Data MCP sustituye Brave + Fetch + Scraping Browser | Accepted | mcp |
 | [0009](0009-arize-phoenix-bonus-partner.md) | Arize Phoenix MCP como bonus partner (junto a OpenTelemetry) | Accepted | mcp, observabilidad |
 | [0010](0010-pipeline-determinista-vs-llm-reactivo.md) | Pipeline determinista coexistiendo con LlmAgent reactivo | Accepted | agente |
+| [0011](0011-acceso-mcp-desde-pipeline.md) | Acceso a MCPs desde el pipeline: SDK `mcp` directo con sesiones efímeras | Accepted | mcp, patrón |
 
 ---
 

@@ -307,7 +307,7 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 | Stack y orquestación | [ADR-0001](adr/0001-orquestacion-adk-agent-engine.md), [ADR-0010](adr/0010-pipeline-determinista-vs-llm-reactivo.md) |
 | Producto / alcance | [ADR-0003](adr/0003-dominio-fake-news-financieras.md) |
 | Datos / persistencia | [ADR-0005](adr/0005-persistencia-doble-capa.md), [ADR-0007](adr/0007-triage-umbrales-early-exit.md) |
-| MCPs / partners | [ADR-0004](adr/0004-track-partner-elastic.md), [ADR-0008](adr/0008-bright-data-mcp-reemplaza-brave-fetch.md), [ADR-0009](adr/0009-arize-phoenix-bonus-partner.md) |
+| MCPs / partners | [ADR-0004](adr/0004-track-partner-elastic.md), [ADR-0008](adr/0008-bright-data-mcp-reemplaza-brave-fetch.md), [ADR-0009](adr/0009-arize-phoenix-bonus-partner.md), [ADR-0011](adr/0011-acceso-mcp-desde-pipeline.md) |
 | Auth / despliegue | [ADR-0006](adr/0006-auth-gemini-dual-adc-api-key.md) |
 | Legal | [ADR-0002](adr/0002-licencia-apache-2-0.md) |
 
