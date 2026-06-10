@@ -277,24 +277,27 @@ agentes-cloud/                 (raíz del repo público)
 ## 10. Roadmap de implementación
 
 **Fase 1 — Cimientos (día 1–2)**
-1. ✅ Repo + LICENSE Apache 2.0 + README + `.env.example`.
-2. ✅ `setup_elastic_index.py` → crear `verified_claims`.
-3. ✅ Clientes MCP: `brightdata_client.py`, `elastic_client.py` (conexión + smoke test).
+- [x] Repo + LICENSE Apache 2.0 + README + `.env.example`
+- [x] `setup_elastic_index.py` → crear `verified_claims`
+- [x] Clientes MCP: `brightdata_client.py`, `elastic_client.py` (conexión + smoke test)
 
 **Fase 2 — Núcleo del agente (día 3–5)**
-4. ✅ Tools [0]–[7] en ADK, con prompts ES/EN.
-5. ✅ `root_agent.py` cableando el flujo + umbrales de early-exit (en `main.py`).
-6. ✅ Tests de triage y verdict con fixtures.
+- [x] Tools [0]–[7] en ADK, con prompts ES/EN
+- [x] `root_agent.py` cableando el flujo + umbrales de early-exit (en `main.py`)
+- [x] Tests de triage y verdict con fixtures
 
 **Fase 3 — Frontend + despliegue (día 6–7)**
-7. ✅ Streamlit con pasos en vivo (modo directo + API). 🟡 Toggle multipaso pendiente (Fase 9.2).
-8. ✅ Dockerfile listo. 🟡 `cloudbuild.yaml` pendiente.
-9. ✅ `agent/engine_app.py` + `scripts/deploy_agent_engine.py` listos. 🟡 Despliegue real pendiente (credenciales).
+- [x] Streamlit con pasos en vivo (modo directo + API)
+- [ ] Toggle multipaso en frontend (Fase 9.2)
+- [x] Dockerfile listo
+- [ ] `cloudbuild.yaml` pendiente
+- [x] `agent/engine_app.py` + `scripts/deploy_agent_engine.py` listos
+- [ ] Despliegue real pendiente (requiere credenciales)
 
 **Fase 4 — Pulido y entrega (día 8)**
-10. ✅ `scripts/seed_factcheckers.py` real (21 dominios curados).
-11. 🟡 Demo de 3 min pendiente.
-12. 🟡 Devpost pendiente.
+- [x] `scripts/seed_factcheckers.py` real (21 dominios curados)
+- [ ] Demo de 3 min
+- [ ] Devpost
 
 ---
 
