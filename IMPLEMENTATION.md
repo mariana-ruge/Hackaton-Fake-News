@@ -200,6 +200,19 @@
 
 ## FASE 9 — Pulido y entrega (lo que queda)
 
+### 9.0 — Seguridad y auditoría 🔴 (añadido tras la revisión del 2026-06-10)
+> La revisión completa del proyecto detectó incidencias que deben cerrarse ANTES de la entrega.
+> Detalle de los fixes ya aplicados: commits `f91ff7d`, `4d6ae6f`, `e8ba27c`.
+
+- [ ] **9.0.1** 🔴 **Rotar claves expuestas**: el commit `d7a18f0` (público en `origin/main`) contiene el `.env` real con `API_KEY_PHOENIX` y `BRAVE_API_KEY`. Rotar Phoenix en app.phoenix.arize.com y revocar Brave. ⚠️ Acción humana urgente.
+- [ ] **9.0.2** Decidir con Mariana si se **purga la historia** (`git filter-repo --path .env --invert-paths` + force-push coordinado) o se acepta dejar las claves *revocadas* en el historial.
+- [x] **9.0.3** Fix C2: `/analizar` ya no indexa placeholders en Elastic (envenenaba el caché del triage). `4d6ae6f`.
+- [x] **9.0.4** Fix A1: decisión del triage por score kNN puro (acotado [0,1]); BM25 solo aporta evidencia. TTL respetado. `4d6ae6f` + ADR-0007 enmendado.
+- [x] **9.0.5** Fix A2: el pipeline busca en la web vía Bright Data MCP (`brightdata_client.py` nuevo, extractor + cross_reference reales). `e8ba27c`.
+- [x] **9.0.6** Fix A4: Node.js 20 en el Dockerfile (los MCP por npx morían en Cloud Run). `e8ba27c`.
+- [x] **9.0.7** Fix A5: sesiones aisladas por request en `/analizar` (antes todos los usuarios compartían historial). `e8ba27c`.
+- [ ] **9.0.8** Decidir protección de la API pública en Cloud Run: backend con `--no-allow-unauthenticated` invocado solo por el frontend (service account), o aceptar el riesgo de abuso de cuota durante la evaluación.
+
 ### 9.1 Acciones humanas (paralelizables)
 - [ ] **9.1.1** `gcloud auth application-default login` + `set-quota-project hackaton-498600`.
 - [ ] **9.1.2** Habilitar APIs (`aiplatform`, `run`, `secretmanager`, `cloudbuild`, `artifactregistry`, `firestore`).
@@ -229,10 +242,12 @@
 - [ ] **9.4.7** Verificar URL pública funcionando.
 
 ### 9.5 Entrega Devpost (Fase 7)
+- [ ] **9.5.0** Sincronizar README con el código: la tabla de stack y el diagrama aún dicen "Bright Data Scraping Browser (CDP/WebSocket)" — desde 8.2 es Bright Data MCP. (Hallazgo M7 de la revisión.)
 - [ ] **9.5.1** Pulir README con GIF/captura + URL hosted.
 - [ ] **9.5.2** Grabar demo ~3 min: caso Ponzi → análisis → repetir para mostrar early-exit.
 - [ ] **9.5.3** Subir video (YouTube/Vimeo).
 - [ ] **9.5.4** Completar formulario Devpost (URL repo + URL hosted + video + track Elastic).
+- [ ] **9.5.5** 🔴 **Merge `Bright` → `main`** coordinado con Mariana: los jueces ven `main` (rama por defecto) y hoy está ~10 commits atrás — sin los fixes críticos, sin ADRs, sin la Fase 8. Hacerlo después del smoke test.
 
 ### Tiempo estimado
 | Bloque | Estimado |
