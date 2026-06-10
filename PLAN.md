@@ -18,17 +18,17 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 
 ### Decisiones cerradas
 
-| Decisión | Elección |
-|---|---|
-| Idioma | **Español** (bilingüe ES/EN planificado; hoy prompts y pipeline operan en `es`) |
-| Frontend | **Streamlit** (hospedado en Cloud Run) |
-| Orquestación | **Híbrido: ADK (lógica) + Vertex AI Agent Engine (despliegue gestionado)** |
-| Licencia | **Apache 2.0** |
-| Google Cloud | **Cuenta con créditos activos: sí** |
-| **Track partner del reto** | 🟢 **Elastic** (triage semántico + memoria) |
-| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · 
-| Persistencia | **Doble capa** → Firestore (log operativo/auditoría) + Elastic (búsqueda semántica + triage) |
-| Dominio | Fake news financieras (desinformación económica, Ponzi, pseudo-traders) |
+| Decisión | Elección | Estado |
+|---|---|---|
+| Idioma | **Español** (bilingüe ES/EN planificado) | 🟡 hoy prompts y pipeline operan en `es` |
+| Frontend | **Streamlit** (hospedado en Cloud Run) | ✅ en local · 🟡 Cloud Run pendiente |
+| Orquestación | **Híbrido: ADK (lógica) + Vertex AI Agent Engine (despliegue gestionado)** | ✅ `agent/engine_app.py` listo · 🟡 despliegue pendiente |
+| Licencia | **Apache 2.0** | ✅ |
+| Google Cloud | **Cuenta con créditos activos: sí** | ✅ proyecto `hackaton-498600` |
+| **Track partner del reto** | 🟢 **Elastic** (triage semántico + memoria) | ✅ integrado en código · 🟡 validar con cluster real |
+| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · **Arize Phoenix MCP** (bonus partner: datasets + trazas) | ✅ integrados en `main.py` |
+| Persistencia | **Doble capa** → Firestore (log operativo/auditoría) + Elastic (búsqueda semántica + triage) | ✅ implementado |
+| Dominio | Fake news financieras (desinformación económica, Ponzi, pseudo-traders) | ✅ |
 
 ---
 
@@ -82,11 +82,11 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 
 ### Track partner + integraciones adicionales
 
-| MCP | Rol | Estado en el reto |
-|---|---|---|
-| **Elastic MCP** | Triage + memoria semántica (paso [0] y [7]) | 🟢 **Track oficial del reto** |
-| **Bright Data MCP** | Scraping y búsqueda en fact-checkers (paso [1] y [4]) | Complemento (no es partner del reto, pero útil) |
-| **Arize Phoenix MCP** | Consulta de prompts/datasets/trazas guardadas (paso [6]) | 🟢 Bonus partner (Phoenix ya envía telemetría) |
+| MCP | Rol | Estado en el reto | Integración |
+|---|---|---|---|
+| **Elastic MCP** | Triage + memoria semántica (paso [0] y [7]) | 🟢 **Track oficial del reto** | ✅ `MCPToolset` en `main.py` · 🟡 cluster real pendiente |
+| **Bright Data MCP** | Scraping y búsqueda en fact-checkers (paso [1] y [4]) | Complemento (no es partner del reto, pero útil) | ✅ `MCPToolset` en `main.py` · 🟡 token real pendiente |
+| **Arize Phoenix MCP** | Consulta de prompts/datasets/trazas guardadas (paso [6]) | 🟢 Bonus partner (Phoenix ya envía telemetría) | ✅ `MCPToolset` en `main.py` · 🟡 dataset curado pendiente |
 
 ---
 
@@ -146,18 +146,18 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 
 ## 4. Herramientas (tools) del agente
 
-| Tool | Backend | Paso |
-|---|---|---|
-| `triage_claim(claim)` | Elastic MCP | [0] |
-| `lookup_cached(claim_hash)` | Elastic MCP | [0] |
-| `fetch_article(url)` | Bright Data MCP | [1] |
-| `extract_claims(text)` | Gemini | [2] |
-| `check_source_reputation(domain)` | Lista curada / API | [3] |
-| `search_factcheckers(claim)` | Bright Data MCP | [4] |
-| `search_trusted_news(claim)` | Bright Data MCP | [4] |
-| `analyze_language(text)` | Gemini | [5] |
-| `build_verdict(context)` | Gemini | [6] |
-| `index_verification(case)` | Elastic MCP | [7] |
+| Tool | Backend | Paso | Estado |
+|---|---|---|---|
+| `triage_claim(claim)` | Elastic MCP | [0] | ✅ implementado |
+| `lookup_cached(claim_hash)` | Elastic MCP | [0] | ✅ implementado |
+| `fetch_article(url)` | Bright Data MCP | [1] | ✅ implementado |
+| `extract_claims(text)` | Gemini | [2] | ✅ implementado |
+| `check_source_reputation(domain)` | Lista curada / API | [3] | ✅ implementado |
+| `search_factcheckers(claim)` | Bright Data MCP | [4] | ✅ implementado |
+| `search_trusted_news(claim)` | Bright Data MCP | [4] | ✅ implementado |
+| `analyze_language(text)` | Gemini | [5] | ✅ implementado |
+| `build_verdict(context)` | Gemini | [6] | ✅ implementado |
+| `index_verification(case)` | Elastic MCP | [7] | ✅ implementado |
 
 ---
 
@@ -196,9 +196,10 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 > La estructura **real y actualizada** del repo vive en el [README](README.md#-estructura-del-proyecto)
 > y en [`docs/architecture.md §5`](docs/architecture.md). Diferencias del diseño original
 > respecto a lo implementado:
-> - `root_agent.py` y `config.py` no existen aún — el agente vive en `main.py` y la config
->   en `agent/genai_client.py` + env vars. `root_agent.py` se creará al desplegar a
->   Agent Engine (Fase 6.7, ver ADR-0012).
+> - El módulo del agente para Agent Engine es **`agent/engine_app.py`** (no `root_agent.py`
+>   como decía el diseño): envuelve el agente en un `AdkApp` con `GlobalGemini` y exige
+>   Modo A/ADC. Se despliega con `scripts/deploy_agent_engine.py` (Fase 6.7, ver ADR-0012).
+>   `config.py` tampoco existe — la config vive en `agent/genai_client.py` + env vars.
 > - Se añadieron piezas no previstas: `agent/pipeline.py` (orquestador multipaso),
 >   `agent/llm_client.py`, `agent/genai_client.py` (auth dual), `agent/data/factcheckers.json`,
 >   `docs/` (architecture + 12 ADRs) y `scraper.py` (respaldo legado).
@@ -231,38 +232,41 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 
 ## 9. Riesgos y mitigaciones
 
-| Riesgo | Mitigación |
-|---|---|
-| Costo/cuota de Bright Data | Triage Elastic cachea agresivamente; solo se scrapea lo nuevo |
-| Latencia (30–60 s) | Streamlit muestra progreso paso a paso; early-exit <2 s |
-| Falso "es real" en triage | Early-exit SOLO contra caché propio verificado, nunca por similitud a noticia real |
-| Sesgo del LLM | Veredicto siempre citando fuentes; categoría "Sin evidencia" permitida; nunca absoluto sin datos |
-| Caché obsoleto | `ttl_days` expira verificaciones sensibles al tiempo |
-| Wording del reto ("Agent Builder") | Desplegado en Vertex AI Agent Engine = ecosistema oficial Agent Builder |
+| Riesgo | Mitigación | Estado |
+|---|---|---|
+| Costo/cuota de Bright Data | Triage Elastic cachea agresivamente; solo se scrapea lo nuevo | ✅ triage implementado |
+| Latencia (30–60 s) | Streamlit muestra progreso paso a paso; early-exit <2 s | ✅ early-exit en pipeline |
+| Falso "es real" en triage | Early-exit SOLO contra caché propio verificado, nunca por similitud a noticia real | ✅ ADR-0007 + fix aplicado |
+| Sesgo del LLM | Veredicto siempre citando fuentes; categoría "Sin evidencia" permitida; nunca absoluto sin datos | ✅ en prompts |
+| Caché obsoleto | `ttl_days` expira verificaciones sensibles al tiempo | ✅ en esquema Elastic |
+| Wording del reto ("Agent Builder") | Desplegado en Vertex AI Agent Engine = ecosistema oficial Agent Builder | ✅ `engine_app.py` + `AdkApp` |
 
 ---
 
 ## 10. Roadmap de implementación
 
 **Fase 1 — Cimientos (día 1–2)**
-1. Repo + LICENSE Apache 2.0 + README + `.env.example`.
-2. `setup_elastic_index.py` → crear `verified_claims`.
-3. Clientes MCP: `brightdata_client.py`, `elastic_client.py` (conexión + smoke test).
+- [x] Repo + LICENSE Apache 2.0 + README + `.env.example`
+- [x] `setup_elastic_index.py` → crear `verified_claims`
+- [x] Clientes MCP: `brightdata_client.py`, `elastic_client.py` (conexión + smoke test)
 
 **Fase 2 — Núcleo del agente (día 3–5)**
-4. Tools [0]–[7] en ADK, con prompts ES/EN.
-5. `root_agent.py` cableando el flujo + umbrales de early-exit.
-6. Tests de triage y verdict con fixtures.
+- [x] Tools [0]–[7] en ADK, con prompts ES/EN
+- [x] `root_agent.py` cableando el flujo + umbrales de early-exit (en `main.py`)
+- [x] Tests de triage y verdict con fixtures
 
 **Fase 3 — Frontend + despliegue (día 6–7)**
-7. Streamlit con pasos en vivo y selector de idioma.
-8. Dockerfile + cloudbuild → Cloud Run.
-9. Desplegar agente en Agent Engine.
+- [x] Streamlit con pasos en vivo (modo directo + API)
+- [ ] Toggle multipaso en frontend (Fase 9.2)
+- [x] Dockerfile listo
+- [ ] `cloudbuild.yaml` pendiente
+- [x] `agent/engine_app.py` + `scripts/deploy_agent_engine.py` listos
+- [ ] Despliegue real pendiente (requiere credenciales)
 
 **Fase 4 — Pulido y entrega (día 8)**
-10. Datos semilla de fact-checkers + reputación.
-11. Grabar demo de 3 min (caso viral + early-exit).
-12. Completar Devpost.
+- [x] `scripts/seed_factcheckers.py` real (21 dominios curados)
+- [ ] Demo de 3 min
+- [ ] Devpost
 
 ---
 

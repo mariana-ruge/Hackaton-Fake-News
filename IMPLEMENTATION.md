@@ -109,6 +109,7 @@
 - [x] **5.1** `frontend/app.py` — chat consumiendo `/analizar` con healthcheck en cabecera.
 - [x] **5.2** Estilos custom + chips de estado (Vertex AI, Firestore, proyecto).
 - [x] **5.3** Persistencia visual del análisis y `firestore_doc_id`.
+- [x] **5.3b** Modo dual del frontend (`FRONTEND_MODE=api|direct`): "direct" usa el runner ADK sin levantar FastAPI — útil para demos rápidas. ✨ Mariana, rama `Implement-ADK`.
 - **5.4** Mostrar el pipeline multipaso en la UI (la mejor carta de la demo):
   - [ ] **5.4.1** Toggle "Modo: reactivo / multipaso" que elige el endpoint.
   - [ ] **5.4.2** Render del desglose: `pasos_ejecutados`, `triage` (badge de early-exit), `fuente`, `linguistico`, evidencias.
@@ -182,7 +183,10 @@
 - [ ] **6.4** **Secret Manager** para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
 - [ ] **6.5** Desplegar backend en **Cloud Run** (us-central1).
 - [ ] **6.6** Desplegar frontend en **Cloud Run** apuntando a la URL del backend.
-- [ ] **6.7** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC, ver ADR-0006). Recrear aquí el módulo `agent/root_agent.py` (idea de Mariana en `07a808b`) adaptado a la arquitectura actual: sin proyecto hardcodeado, sin Brave/Fetch, con auth dual.
+- [~] **6.7** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC, ver ADR-0006).
+  - [x] **6.7.1** `agent/engine_app.py` — `AdkApp` con `GlobalGemini` (endpoint global para Gemini 2.x), guardia de Modo A, prompt desde fuente única (`agent/prompts/_agent_prompt.py`). ✨ Mariana, rama `Implement-ADK`.
+  - [x] **6.7.2** `scripts/deploy_agent_engine.py` — deploy con prereq-checks, `--staging-bucket` y `--test-query`. ✨ Mariana.
+  - [ ] **6.7.3** Ejecutar el deploy real (requiere ADC + bucket GCS) y guardar `AGENT_ENGINE_ID` en `.env`.
 - [ ] **6.8** Verificación end-to-end con URL pública.
 
 ---
