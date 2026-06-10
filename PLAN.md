@@ -26,7 +26,7 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 | Licencia | **Apache 2.0** |
 | Google Cloud | **Cuenta con créditos activos: sí** |
 | **Track partner del reto** | 🟢 **Elastic** (triage semántico + memoria) |
-| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · **Arize Phoenix MCP** (bonus partner: datasets + trazas) |
+| MCPs adicionales | **Bright Data MCP** (scraping/evidencia) · 
 | Persistencia | **Doble capa** → Firestore (log operativo/auditoría) + Elastic (búsqueda semántica + triage) |
 | Dominio | Fake news financieras (desinformación económica, Ponzi, pseudo-traders) |
 
