@@ -9,7 +9,7 @@
 **Stack actual (rama Bright):** Gemini 2.5 Flash · Google ADK · Vertex AI / API key (auth dual) · FastAPI · Streamlit · **Firestore (log) + Elastic (memoria semántica)** · **Elastic MCP** 🟢 (track) · **Bright Data MCP** · **Arize Phoenix MCP** (bonus).
 
 **Track del reto:** 🟢 **Elastic** (`Pick one and build with their MCP server`).
-**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (11 ADRs).
+**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (12 ADRs).
 
 > **Regla del documento:** cada tema vive en UNA sola fase (checkboxes canónicos).
 > El "Runbook" final solo ordena referencias — no duplica checkboxes.
@@ -67,12 +67,12 @@
 > ✅ Las tools están **implementadas** y se usan desde `agent/pipeline.py` (endpoint `/analizar/multipaso`).
 > El endpoint `/analizar` reactivo del LlmAgent sigue disponible en paralelo (decisión ADR-0010).
 
-- [x] **2.1** `tools/triage.py` — **REAL** (8.5.2): genera embedding, búsqueda híbrida en Elastic, devuelve `early_exit | evidence | fresh`.
-- [x] **2.2** `tools/extractor.py` — **REAL** (8.5.2): si es URL delega en `scraper.py`; si es texto, passthrough.
+- [x] **2.1** `tools/triage.py` — **REAL** (8.5.2): genera embedding, búsqueda en Elastic (decisión por kNN, ver ADR-0007), devuelve `early_exit | evidence | fresh`.
+- [x] **2.2** `tools/extractor.py` — **REAL** (`e8ba27c`): para URLs, cadena Bright Data MCP → `scraper.py` legado → texto crudo; reporta `extractor_usado`.
 - [x] **2.3a** Prompt `prompts/claim_parser.es.txt`.
 - [x] **2.3b** `tools/claim_parser.py` — **REAL** (8.5.2): Gemini con `response_mime_type=application/json`, devuelve lista de claims atómicos.
 - [x] **2.4** `tools/source_checker.py` — **REAL** (8.5.2): consulta `agent/data/factcheckers.json` + heurísticas (TLD sospechoso, spoofing).
-- [x] **2.5** `tools/cross_reference.py` — **REAL** (8.5.2): reusa hits del triage como evidencia. (TODO futuro: Bright Data MCP en línea).
+- [x] **2.5** `tools/cross_reference.py` — **REAL** (`e8ba27c`): memoria Elastic (hits del triage) + **búsqueda web por claim vía Bright Data MCP** (cap `CROSS_REFERENCE_MAX_SEARCHES`).
 - [x] **2.6a** Prompt `prompts/linguistic.es.txt`.
 - [x] **2.6b** `tools/linguistic.py` — **REAL** (8.5.2): scoring de alarmismo/sesgo/clickbait + banderas rojas.
 - [x] **2.7a** Prompt `prompts/verdict.es.txt`.
@@ -158,8 +158,8 @@
   - `triage.py`, `persistence.py` (Fase 8.1)
   - `claim_parser.py`, `linguistic.py`, `verdict.py` con Gemini estructurado vía `agent/llm_client.py`
   - `source_checker.py` con lista curada `agent/data/factcheckers.json`
-  - `cross_reference.py` (reutiliza hits del triage; futuro: Bright Data MCP)
-  - `extractor.py` (delega en `scraper.py` para URLs)
+  - `cross_reference.py` (memoria Elastic + búsqueda web vía Bright Data MCP, `e8ba27c`)
+  - `extractor.py` (Bright Data MCP → `scraper.py` legado → texto, `e8ba27c`)
 - [x] **8.5.3** Early-exit en código (no en el LLM): `pipeline.ejecutar_pipeline` devuelve cached < 2 s.
 - [x] **8.5.4** Endpoint `/analizar/multipaso` que expone el pipeline determinista con desglose de pasos.
 - [x] **8.5.5** `scripts/seed_factcheckers.py` real (21 dominios curados ES/EN + reguladores).

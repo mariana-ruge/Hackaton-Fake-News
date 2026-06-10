@@ -1,10 +1,12 @@
 # VeritasAgent — Plan Maestro
 
-> Agente multi-paso para verificación de noticias (fake news) con triage por similitud semántica, evidencia rastreable y veredicto con nivel de confianza.
-> Construido con **Gemini + Google Cloud (ADK + Agent Engine)** e integrando **2 MCPs de partner: Bright Data + Elastic**.
+> Agente multi-paso para verificación de noticias financieras con triage por similitud semántica, evidencia rastreable y veredicto con nivel de confianza.
+> Construido con **Gemini + Google Cloud (ADK + Agent Engine)**, track partner 🟢 **Elastic MCP** + Bright Data MCP y Arize Phoenix MCP.
 
-**Fecha:** 2026-06-05
-**Estado:** Diseño aprobado — listo para implementación.
+**Fecha:** 2026-06-05 (última sincronización: 2026-06-10)
+**Estado:** Documento de **visión y decisiones de alto nivel**.
+
+> ℹ️ **Dónde mirar cada cosa:** la **vista actual** del sistema (diagramas, componentes, endpoints) vive en [`docs/architecture.md`](docs/architecture.md); el **estado de ejecución** en [`IMPLEMENTATION.md`](IMPLEMENTATION.md); el **porqué de cada decisión** en [`docs/adr/`](docs/adr/). Si este documento contradice a alguno de esos, ganan ellos.
 
 ---
 
@@ -18,7 +20,7 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 
 | Decisión | Elección |
 |---|---|
-| Idioma | **Español + Inglés (bilingüe)** |
+| Idioma | **Español** (bilingüe ES/EN planificado; hoy prompts y pipeline operan en `es`) |
 | Frontend | **Streamlit** (hospedado en Cloud Run) |
 | Orquestación | **Híbrido: ADK (lógica) + Vertex AI Agent Engine (despliegue gestionado)** |
 | Licencia | **Apache 2.0** |
@@ -191,50 +193,16 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 
 ## 6. Estructura del repositorio
 
-```
-agentes-cloud/                 (raíz del repo público)
-├── LICENSE                     # Apache 2.0  (visible en "About")
-├── README.md                   # qué es, demo gif, cómo correr, arquitectura
-├── PLAN.md                     # este documento
-├── .env.example                # claves: GEMINI, BRIGHTDATA, ELASTIC (sin valores)
-├── .gitignore
-├── requirements.txt
-├── Dockerfile                  # imagen para Cloud Run
-├── cloudbuild.yaml             # CI/CD a Cloud Run / Agent Engine
-│
-├── agent/                      # lógica ADK
-│   ├── __init__.py
-│   ├── root_agent.py           # define el agente y registra tools
-│   ├── config.py               # modelo, umbrales (0.92 / 0.75), idiomas
-│   ├── tools/
-│   │   ├── triage.py           # [0] Elastic
-│   │   ├── extractor.py        # [1] Bright Data
-│   │   ├── claim_parser.py     # [2] Gemini
-│   │   ├── source_checker.py   # [3]
-│   │   ├── cross_reference.py  # [4] Bright Data
-│   │   ├── linguistic.py       # [5] Gemini
-│   │   ├── verdict.py          # [6] Gemini
-│   │   └── persistence.py      # [7] Elastic
-│   ├── mcp/
-│   │   ├── brightdata_client.py
-│   │   └── elastic_client.py
-│   └── prompts/
-│       ├── claim_parser.es.txt / .en.txt
-│       ├── linguistic.es.txt   / .en.txt
-│       └── verdict.es.txt      / .en.txt
-│
-├── frontend/
-│   └── app.py                  # Streamlit: input, pasos en vivo, veredicto
-│
-├── scripts/
-│   ├── setup_elastic_index.py  # crea el índice verified_claims
-│   └── seed_factcheckers.py    # lista curada de dominios/reputación
-│
-└── tests/
-    ├── test_triage.py          # early-exit con umbrales
-    ├── test_verdict.py
-    └── fixtures/               # claims de ejemplo ES/EN
-```
+> La estructura **real y actualizada** del repo vive en el [README](README.md#-estructura-del-proyecto)
+> y en [`docs/architecture.md §5`](docs/architecture.md). Diferencias del diseño original
+> respecto a lo implementado:
+> - `root_agent.py` y `config.py` no existen aún — el agente vive en `main.py` y la config
+>   en `agent/genai_client.py` + env vars. `root_agent.py` se creará al desplegar a
+>   Agent Engine (Fase 6.7, ver ADR-0012).
+> - Se añadieron piezas no previstas: `agent/pipeline.py` (orquestador multipaso),
+>   `agent/llm_client.py`, `agent/genai_client.py` (auth dual), `agent/data/factcheckers.json`,
+>   `docs/` (architecture + 12 ADRs) y `scraper.py` (respaldo legado).
+> - Los prompts existen solo en `es` por ahora (`.en` planificado).
 
 ---
 

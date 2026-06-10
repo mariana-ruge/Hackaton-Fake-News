@@ -52,8 +52,8 @@ flowchart TB
     E1 --> ROOT
     E2 --> PIPE
     ROOT --> MCP1 & MCP2 & MCP3
-    TOOLS --> MCP1
-    TOOLS -.->|opcional| MCP2 & MCP3
+    TOOLS --> MCP1 & MCP2
+    TOOLS -.->|futuro| MCP3
     PIPE --> ES
     API --> FS
     TOOLS --> VX
@@ -100,7 +100,7 @@ sequenceDiagram
         P->>P: extraer(texto)
         P->>LLM: parsear_claims (prompt)
         P->>SC: evaluar_fuente(dominio)
-        P->>P: contrastar (reusa hits)
+        P->>P: contrastar (hits Elastic + búsqueda web vía Bright Data MCP)
         P->>LLM: analizar_linguistico (prompt)
         P->>LLM: emitir_veredicto (prompt)
 
@@ -217,7 +217,8 @@ flowchart LR
         end
 
         subgraph mcp["mcp/"]
-            EC["elastic_client.py<br/>conexión + hybrid_search"]
+            EC["elastic_client.py<br/>conexión + hybrid_search + TTL"]
+            BD["brightdata_client.py<br/>SDK mcp directo (ADR-0011)"]
             LC["local_cache.py<br/>fallback offline"]
         end
 
@@ -229,7 +230,8 @@ flowchart LR
     LLM --> GENAI
     EMB --> GENAI
     PIPE --> T0 --> EC
-    PIPE --> T1
+    PIPE --> T1 --> BD
+    T4 --> BD
     PIPE --> T2 --> LLM
     PIPE --> T3 --> FC
     PIPE --> T4
@@ -309,6 +311,7 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 | Datos / persistencia | [ADR-0005](adr/0005-persistencia-doble-capa.md), [ADR-0007](adr/0007-triage-umbrales-early-exit.md) |
 | MCPs / partners | [ADR-0004](adr/0004-track-partner-elastic.md), [ADR-0008](adr/0008-bright-data-mcp-reemplaza-brave-fetch.md), [ADR-0009](adr/0009-arize-phoenix-bonus-partner.md), [ADR-0011](adr/0011-acceso-mcp-desde-pipeline.md) |
 | Auth / despliegue | [ADR-0006](adr/0006-auth-gemini-dual-adc-api-key.md) |
+| Gobernanza / proceso git | [ADR-0012](adr/0012-resolucion-merge-bright-canonica.md) |
 | Legal | [ADR-0002](adr/0002-licencia-apache-2-0.md) |
 
 ---
@@ -317,7 +320,8 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 
 Estos cambios cumplen los criterios de "merecen ADR" pero aún no se han tomado:
 
-- Cómo desplegar a **Vertex AI Agent Engine** (sesiones gestionadas vs Cloud Run plano).
+- Cómo desplegar a **Vertex AI Agent Engine** (sesiones gestionadas vs Cloud Run plano) — incluye recrear `agent/root_agent.py` (ver ADR-0012 y Fase 6.7).
 - Si convertir el `LlmAgent` reactivo en una cadena de **sub-agentes ADK secuenciales**.
-- Estrategia de **TTL e invalidación** del caché en Elastic cuando una verificación queda obsoleta.
+- Si migrar el cliente Elastic a **async** (la implementación de `07a808b` queda como referencia).
 - Política de **rotación de claves** y manejo de **Secret Manager** en producción.
+- Soporte **bilingüe ES/EN** real (hoy los prompts y el pipeline operan en `es`).

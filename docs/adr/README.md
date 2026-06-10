@@ -77,13 +77,14 @@ La elección, en una frase si es posible.
 | [0002](0002-licencia-apache-2-0.md) | Licencia Apache 2.0 | Accepted | legal |
 | [0003](0003-dominio-fake-news-financieras.md) | Foco en fake news financieras (Ponzi, pseudo-traders) | Accepted | producto |
 | [0004](0004-track-partner-elastic.md) | Track partner del reto = Elastic | Accepted | mcp, reto |
-| [0005](0005-persistencia-doble-capa.md) | Persistencia doble capa: Firestore (log) + Elastic (memoria semántica) | Accepted | datos |
+| [0005](0005-persistencia-doble-capa.md) | Persistencia doble capa: Firestore (log) + Elastic (memoria semántica) | Accepted (amended) | datos |
 | [0006](0006-auth-gemini-dual-adc-api-key.md) | Auth Gemini con soporte dual: ADC + API key directa | Accepted | auth |
-| [0007](0007-triage-umbrales-early-exit.md) | Triage con umbrales 0.92 / 0.75 y early-exit determinista | Accepted | agente, datos |
+| [0007](0007-triage-umbrales-early-exit.md) | Triage con umbrales 0.92 / 0.75 y early-exit determinista | Accepted (amended) | agente, datos |
 | [0008](0008-bright-data-mcp-reemplaza-brave-fetch.md) | Bright Data MCP sustituye Brave + Fetch + Scraping Browser | Accepted | mcp |
 | [0009](0009-arize-phoenix-bonus-partner.md) | Arize Phoenix MCP como bonus partner (junto a OpenTelemetry) | Accepted | mcp, observabilidad |
 | [0010](0010-pipeline-determinista-vs-llm-reactivo.md) | Pipeline determinista coexistiendo con LlmAgent reactivo | Accepted | agente |
 | [0011](0011-acceso-mcp-desde-pipeline.md) | Acceso a MCPs desde el pipeline: SDK `mcp` directo con sesiones efímeras | Accepted | mcp, patrón |
+| [0012](0012-resolucion-merge-bright-canonica.md) | Resolución del merge: la arquitectura de `Bright` es la canónica | Accepted | gobernanza, git |
 
 ---
 
