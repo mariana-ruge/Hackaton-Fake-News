@@ -4,7 +4,7 @@
 
 ### Agente verificador de **noticias financieras** y detector de fraudes de inversión
 
-**Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Arize Phoenix · Firestore · Bright Data**
+**Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Firestore · Bright Data**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -41,8 +41,6 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
 | 📊 **Métrica de riesgo** | Etiqueta cada caso con incertidumbre Alta / Media / Baja |
 | ⏳ **Línea de tiempo** | Reconstruye cómo evolucionó la narrativa en titulares serios |
 | 🌍 **Aclaración geopolítica** | Nota de neutralidad obligatoria cuando la noticia involucra gobiernos o líderes |
-| 📈 **Observabilidad** | Trazas en Arize Phoenix de cada llamada del agente |
-
 ---
 
 ## 🏗️ Arquitectura
@@ -68,13 +66,13 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
 │ + los 3 MCPs ↓          │   │ [7] persist     (ADR-0010)      │
 └──────────┬──────────────┘   └────────────┬─────────────────────┘
            └──────────────┬────────────────┘
-    ┌─────────────────────┼──────────────────────┐
-┌───▼──────────┐  ┌───────▼────────┐  ┌──────────▼─────┐
-│ 🟢 Elastic   │  │ Bright Data    │  │ Arize Phoenix  │
-│ MCP (track)  │  │ MCP            │  │ MCP (bonus)    │
-│ triage +     │  │ scraping +     │  │ datasets +     │
-│ memoria      │  │ búsqueda web   │  │ trazas OTel    │
-└──────────────┘  └────────────────┘  └────────────────┘
+    ┌─────────────────────┼
+┌───▼──────────┐  ┌───────▼────────┐  
+│ 🟢 Elastic   │  │ Bright Data    │  
+│ MCP (track)  │  │ MCP            │  
+│ triage +     │  │ scraping +     │  
+│ memoria      │  │ búsqueda web   │  
+└──────────────┘  └────────────────┘  
         │
 ┌───────▼─────┐   ┌──────────────┐
 │  Firestore  │   │  Vertex AI   │
@@ -115,9 +113,8 @@ El agente recibe el texto y ejecuta el siguiente flujo conceptual (definido en s
 | Backend | **FastAPI + Uvicorn** |
 | Frontend | **Streamlit** (chat) |
 | 🟢 **Track partner del reto** | **Elastic MCP** (triage + memoria semántica) |
-| MCPs adicionales | **Bright Data MCP** (scraping + búsqueda web) · **Arize Phoenix MCP** (datasets + trazas) |
+| MCPs adicionales | **Bright Data MCP** (scraping + búsqueda web) 
 | Persistencia | **Firestore** (log operativo) · **Elastic** (memoria semántica con embeddings, TTL) |
-| Observabilidad | **Arize Phoenix** + OpenTelemetry |
 | Embeddings | `text-embedding-004` (768 dims, agnóstico al modo de auth) |
 | Despliegue | **Cloud Run** + **Vertex AI Agent Engine** |
 | Lenguaje | Python 3.11+ |
@@ -189,7 +186,6 @@ Hackaton-Fake-News/
 - **gcloud CLI** ([instalación](https://cloud.google.com/sdk/docs/install)) — solo para el modo A (ADC)
 - Cluster de **Elasticsearch** (Elastic Cloud free trial o self-hosted) — 🟢 track del reto
 - Cuenta en **Bright Data** (API token + zona Web Unlocker)
-- Cuenta en **Arize Phoenix** (API key) — opcional, habilita telemetría + bonus MCP
 - Proyecto de **Google Cloud** con Vertex AI y Firestore — solo para el modo A
 
 ### Pasos
@@ -203,6 +199,7 @@ cd Hackaton-Fake-News
 python -m venv .venv
 # Windows
 .venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1  
 # macOS / Linux
 source .venv/bin/activate
 
@@ -310,7 +307,6 @@ El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 - [x] Frontend Streamlit (chat reactivo)
 - [x] 🟢 **Track Elastic**: Elastic MCP + índice `verified_claims` + triage semántico con early-exit (falta solo el cluster real)
 - [x] **Bright Data MCP** sustituye a Brave + Fetch + Scraping Browser
-- [x] **Arize Phoenix MCP** como bonus partner
 - [x] Pipeline **multi-paso determinista** (`/analizar/multipaso`)
 - [x] Auth dual ADC / API key
 - [ ] Frontend: vista del pipeline multipaso (pasos en vivo + early-exit)
