@@ -149,12 +149,16 @@ if ELASTIC_API_KEY and (ELASTIC_URL or ELASTIC_CLOUD_ID):
         "ES_API_KEY": ELASTIC_API_KEY,
         "ES_URL": ELASTIC_URL or "",
         "ES_CLOUD_ID": ELASTIC_CLOUD_ID or "",
+        # Desactiva la telemetría del servidor MCP para que no emita
+        # mensajes JSON de estado a stdout antes del handshake JSONRPC.
+        "ELASTIC_APM_ACTIVE": "false",
+        "NODE_NO_WARNINGS": "1",
     }
     elastic_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
                 command="npx",
-                args=["-y", "@elastic/mcp-server-elasticsearch"],
+                args=["-y", "@elastic/mcp-server-elasticsearch", "--no-telemetry"],
                 env=elastic_env,
             ),
             timeout=60.0,
