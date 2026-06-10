@@ -117,54 +117,9 @@
 
 ---
 
-## FASE 6 — Despliegue (Google Cloud)
-- [x] **6.1** `Dockerfile` del backend (Playwright 1.49 + Node 20 para los MCPs + uvicorn).
-- [ ] **6.2** `cloudbuild.yaml` para Cloud Run (backend FastAPI).
-- [ ] **6.3** `Dockerfile`/servicio para **Streamlit** (separado del backend).
-- [ ] **6.4** **Secret Manager** para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
-- [ ] **6.5** Desplegar backend en **Cloud Run** (us-central1).
-- [ ] **6.6** Desplegar frontend en **Cloud Run** apuntando a la URL del backend.
-- [ ] **6.7** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC, ver ADR-0006). Recrear aquí el módulo `agent/root_agent.py` (idea de Mariana en `07a808b`) adaptado a la arquitectura actual: sin proyecto hardcodeado, sin Brave/Fetch, con auth dual.
-- [ ] **6.8** Verificación end-to-end con URL pública.
-
----
-
-## FASE 7 — Entrega del concurso
-- [ ] **7.0** Sincronizar README con el código: stack y diagrama aún dicen "Bright Data Scraping Browser (CDP/WebSocket)" — desde 8.2 es Bright Data MCP. (Hallazgo M7.)
-- [ ] **7.1** README con GIF/captura + URL hosted.
-- [x] **7.2** `LICENSE` Apache 2.0 visible en *About* del repo.
-- [ ] **7.3** Demo ~3 min: caso Ponzi/pseudo-trader → veredicto → repetición para mostrar early-exit. Subir a YouTube/Vimeo.
-- [ ] **7.4** Formulario Devpost completado (URL repo + URL hosted + video + track).
-- [ ] **7.5** Track del envío: 🟢 **Elastic** (ver ADR-0004).
-- [ ] **7.6** 🔴 **Merge `Bright` → `main`** coordinado con Mariana: los jueces ven `main` (rama por defecto). Hacerlo después del smoke test (4.5).
-
----
-
-## ⚠️ Riesgos del reto — estado actual
-
-| ID | Riesgo | Estado | Notas |
-|---|---|---|---|
-| **R1** | Ningún MCP usado es de partner del reto | ✅ **Resuelto en código** | Elastic MCP (track) + Phoenix MCP (bonus) integrados como `MCPToolset`. Falta validar con cluster real. |
-| **R2** | El agente no es multi-paso real | ✅ **Resuelto** | Pipeline determinista en `agent/pipeline.py` expuesto por `/analizar/multipaso`. Devuelve `pasos_ejecutados`. |
-| **R3** | No hay caché semántica con Elastic | ✅ **Resuelto en código** | Triage con umbrales 0.92/0.75 + index automático. Falta validar con cluster real. |
-| **R4** | README alineado a finanzas | ✅ Resuelto | — |
-| **R5** | Brave + Fetch no aportan al track | ✅ Resuelto | Removidos en 8.2. Bright Data MCP los cubre. |
-| **R6** | Sin credenciales reales, todo está sin validar end-to-end | 🟡 **Pendiente** | Bloqueante para la demo y el despliegue (Fase 6). |
-| **R7** | Sin URL pública aún | 🟡 Pendiente | Fase 6 (Cloud Run + Agent Engine). |
-| **R8** | Sin video de demo ni submission Devpost | 🟡 Pendiente | Fase 7. |
-
----
-
-## 🔐 Seguridad — incidente de claves (auditoría 2026-06-10)
-> Fixes de código ya aplicados en la misma auditoría: C2 + A1 (`4d6ae6f`), A2 + A4 + A5 + M1 (`e8ba27c`), orden Phoenix (`f91ff7d`). Detalle en ADR-0005/0007 (enmiendas) y ADR-0011.
-
-- [ ] **S.1** 🔴 **Rotar claves expuestas**: el commit `d7a18f0` (público en `origin/main`) contiene el `.env` real con `API_KEY_PHOENIX` y `BRAVE_API_KEY`. Rotar Phoenix en app.phoenix.arize.com y revocar Brave. ⚠️ Acción humana urgente.
-- [ ] **S.2** Decidir con Mariana si se **purga la historia** (`git filter-repo --path .env --invert-paths` + force-push coordinado) o se aceptan las claves *revocadas* en el historial.
-- [ ] **S.3** Decidir protección de la API pública en Cloud Run: backend con `--no-allow-unauthenticated` invocado solo por el frontend (service account), o aceptar el riesgo de abuso de cuota durante la evaluación.
-
----
-
 ## FASE 8 — Migración a la arquitectura definitiva (decisión Opción B)
+> ℹ️ **Numeración histórica**: esta fase se definió después de las Fases 6/7, pero su
+> ejecución va ANTES del despliegue — por eso el documento la ubica aquí.
 > Objetivo: cumplir el track Elastic, sumar Phoenix MCP como bonus partner, y dejar Firestore como log operativo (NO como memoria semántica).
 
 ### 8.1 — Elastic MCP (track partner) 🟢
@@ -209,14 +164,61 @@
 - [x] **8.5.4** Endpoint `/analizar/multipaso` que expone el pipeline determinista con desglose de pasos.
 - [x] **8.5.5** `scripts/seed_factcheckers.py` real (21 dominios curados ES/EN + reguladores).
 - [x] **8.5.6** Tests deterministas reales: `test_triage`, `test_verdict`, `test_source_checker` (sin xfail).
-- [ ] **8.5.7** Frontend Streamlit: render del desglose por pasos (queda para Fase 9).
+- **8.5.7** Frontend con desglose por pasos → checklist canónico en **5.4** (sin checkbox aquí).
 
 ### Criterios de hecho de la Fase 8
 - ✅ `pytest` (deterministas) pasa sin xfail.
 - ✅ `/analizar/multipaso` con un claim nuevo recorre los 7 pasos y devuelve `pasos_ejecutados`.
 - ✅ `/analizar/multipaso` con un claim repetido devuelve `cacheado: true` desde Elastic.
 - ✅ `/health` reporta `elastic_mcp`, `brightdata_mcp` y `phoenix_mcp`.
-- ⚠️ Falta arrancar el server con credenciales reales para validar end-to-end (paso A del plan original).
+- ⚠️ Falta arrancar el server con credenciales reales para validar end-to-end (smoke test 4.5).
+
+---
+
+## FASE 6 — Despliegue (Google Cloud)
+- [x] **6.1** `Dockerfile` del backend (Playwright 1.49 + Node 20 para los MCPs + uvicorn).
+- [ ] **6.2** `cloudbuild.yaml` para Cloud Run (backend FastAPI).
+- [ ] **6.3** `Dockerfile`/servicio para **Streamlit** (separado del backend).
+- [ ] **6.4** **Secret Manager** para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
+- [ ] **6.5** Desplegar backend en **Cloud Run** (us-central1).
+- [ ] **6.6** Desplegar frontend en **Cloud Run** apuntando a la URL del backend.
+- [ ] **6.7** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC, ver ADR-0006). Recrear aquí el módulo `agent/root_agent.py` (idea de Mariana en `07a808b`) adaptado a la arquitectura actual: sin proyecto hardcodeado, sin Brave/Fetch, con auth dual.
+- [ ] **6.8** Verificación end-to-end con URL pública.
+
+---
+
+## FASE 7 — Entrega del concurso
+- [ ] **7.0** Sincronizar README con el código: stack y diagrama aún dicen "Bright Data Scraping Browser (CDP/WebSocket)" — desde 8.2 es Bright Data MCP. (Hallazgo M7.)
+- [ ] **7.1** README con GIF/captura + URL hosted.
+- [x] **7.2** `LICENSE` Apache 2.0 visible en *About* del repo.
+- [ ] **7.3** Demo ~3 min: caso Ponzi/pseudo-trader → veredicto → repetición para mostrar early-exit. Subir a YouTube/Vimeo.
+- [ ] **7.4** Formulario Devpost completado (URL repo + URL hosted + video + track).
+- [ ] **7.5** Track del envío: 🟢 **Elastic** (ver ADR-0004).
+- [ ] **7.6** 🔴 **Merge `Bright` → `main`** coordinado con Mariana: los jueces ven `main` (rama por defecto). Hacerlo después del smoke test (4.5).
+
+---
+
+## ⚠️ Riesgos del reto — estado actual
+
+| ID | Riesgo | Estado | Notas |
+|---|---|---|---|
+| **R1** | Ningún MCP usado es de partner del reto | ✅ **Resuelto en código** | Elastic MCP (track) + Phoenix MCP (bonus) integrados como `MCPToolset`. Falta validar con cluster real. |
+| **R2** | El agente no es multi-paso real | ✅ **Resuelto** | Pipeline determinista en `agent/pipeline.py` expuesto por `/analizar/multipaso`. Devuelve `pasos_ejecutados`. |
+| **R3** | No hay caché semántica con Elastic | ✅ **Resuelto en código** | Triage con umbrales 0.92/0.75 + index automático. Falta validar con cluster real. |
+| **R4** | README alineado a finanzas | ✅ Resuelto | — |
+| **R5** | Brave + Fetch no aportan al track | ✅ Resuelto | Removidos en 8.2. Bright Data MCP los cubre. |
+| **R6** | Sin credenciales reales, todo está sin validar end-to-end | 🟡 **Pendiente** | Bloqueante para la demo y el despliegue (Fase 6). |
+| **R7** | Sin URL pública aún | 🟡 Pendiente | Fase 6 (Cloud Run + Agent Engine). |
+| **R8** | Sin video de demo ni submission Devpost | 🟡 Pendiente | Fase 7. |
+
+---
+
+## 🔐 Seguridad — incidente de claves (auditoría 2026-06-10)
+> Fixes de código ya aplicados en la misma auditoría: C2 + A1 (`4d6ae6f`), A2 + A4 + A5 + M1 (`e8ba27c`), orden Phoenix (`f91ff7d`). Detalle en ADR-0005/0007 (enmiendas) y ADR-0011.
+
+- [ ] **S.1** 🔴 **Rotar claves expuestas**: el commit `d7a18f0` (público en `origin/main`) contiene el `.env` real con `API_KEY_PHOENIX` y `BRAVE_API_KEY`. Rotar Phoenix en app.phoenix.arize.com y revocar Brave. ⚠️ Acción humana urgente.
+- [ ] **S.2** Decidir con Mariana si se **purga la historia** (`git filter-repo --path .env --invert-paths` + force-push coordinado) o se aceptan las claves *revocadas* en el historial.
+- [ ] **S.3** Decidir protección de la API pública en Cloud Run: backend con `--no-allow-unauthenticated` invocado solo por el frontend (service account), o aceptar el riesgo de abuso de cuota durante la evaluación.
 
 ---
 
