@@ -1,239 +1,243 @@
-"""
-Cliente de Elastic para VeritasAgent.
+"""Cliente Elasticsearch reutilizable para VeritasAgent.
 
-Implementa la capa [0] Triage (búsqueda semántica/híbrida) y la capa [7]
-Persist/Index (memoria de verificaciones) descritas en PLAN.md.
+Encapsula:
+- conexión (Cloud ID o URL + API key),
+- búsqueda híbrida (kNN sobre `claim_embedding` + match sobre `claim_text`),
+- indexado de veredictos.
 
-- Búsqueda híbrida: kNN (dense_vector cosine) + BM25 (texto).
-- Memoria: cada verificación se reindexa para alimentar triages futuros.
-- TTL: las verificaciones caducan según `ttl_days` (default 30).
+El cliente es **sincrónico** porque `elasticsearch-py` ofrece API estable así
+y nuestros endpoints lo invocan a través de `asyncio.to_thread` cuando hace
+falta no bloquear el event loop.
 
-Si Elastic no está configurado (sin ELASTIC_URL/ELASTIC_CLOUD_ID o sin
-ELASTIC_API_KEY) el cliente queda inactivo y `is_configured()` devuelve False,
-de modo que el flujo principal del agente sigue funcionando sin Elastic.
+Para uso desde el agente vía MCP, ver el `MCPToolset` de Elastic en `main.py`.
 """
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
 
-try:
-    from elasticsearch import AsyncElasticsearch
-    from elasticsearch import exceptions as es_exceptions
-    _ELASTIC_AVAILABLE = True
-except ImportError:  # pragma: no cover - se maneja en runtime
-    AsyncElasticsearch = None  # type: ignore[assignment]
-    es_exceptions = None  # type: ignore[assignment]
-    _ELASTIC_AVAILABLE = False
+from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from elasticsearch.exceptions import NotFoundError
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_INDEX = "verified_claims"
+DEFAULT_TTL_DAYS = 30
+DEFAULT_TOP_K = 5
+EARLY_EXIT_THRESHOLD = float(os.getenv("TRIAGE_EARLY_EXIT_THRESHOLD", "0.92"))
+EVIDENCE_THRESHOLD = float(os.getenv("TRIAGE_EVIDENCE_THRESHOLD", "0.75"))
 
 
-DEFAULT_INDEX = os.getenv("ELASTIC_INDEX", "verified_claims")
-EMBEDDING_DIMS = int(os.getenv("EMBEDDING_DIMS", "768"))
-
-
-def _env_value(name: str, default: str | None = None) -> str | None:
-    value = os.getenv(name, default)
-    if value is None:
-        return None
-    return value.strip().strip('"').strip("'")
+def claim_hash(text: str) -> str:
+    """Hash estable del claim para deduplicar (independiente del idioma de variantes triviales)."""
+    normalized = " ".join(text.strip().lower().split())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 class ElasticClient:
-    """Cliente async sobre Elasticsearch para triage + memoria de claims."""
+    """Wrapper estrecho alrededor de `elasticsearch.Elasticsearch`."""
 
-    def __init__(self) -> None:
-        self.index = _env_value("ELASTIC_INDEX", DEFAULT_INDEX) or DEFAULT_INDEX
-        self._cloud_id = _env_value("ELASTIC_CLOUD_ID")
-        self._url = _env_value("ELASTIC_URL")
-        self._api_key = _env_value("ELASTIC_API_KEY")
-        self._client: "AsyncElasticsearch | None" = None
+    def __init__(self, *, url: str | None = None, cloud_id: str | None = None,
+                 api_key: str | None = None, index: str | None = None) -> None:
+        self.url = url or os.getenv("ELASTIC_URL")
+        self.cloud_id = cloud_id or os.getenv("ELASTIC_CLOUD_ID")
+        self.api_key = api_key or os.getenv("ELASTIC_API_KEY")
+        self.index = index or os.getenv("ELASTIC_INDEX", DEFAULT_INDEX)
+        self._es: Elasticsearch | None = None
 
-    # ------------------------------------------------------------------
-    # Configuración / conexión
-    # ------------------------------------------------------------------
-    def is_configured(self) -> bool:
-        """True si hay credenciales suficientes y la librería está instalada."""
-        if not _ELASTIC_AVAILABLE:
-            return False
-        if not self._api_key:
-            return False
-        return bool(self._cloud_id or self._url)
+    # ──────────────────────────────────────────────────────────────────────
+    # Conexión
+    # ──────────────────────────────────────────────────────────────────────
+    def connect(self) -> Elasticsearch:
+        if self._es is not None:
+            return self._es
+        if not self.api_key:
+            raise RuntimeError("ELASTIC_API_KEY no está definida.")
+        if not (self.url or self.cloud_id):
+            raise RuntimeError("Define ELASTIC_URL o ELASTIC_CLOUD_ID.")
 
-    def _build_client(self) -> "AsyncElasticsearch":
-        kwargs: dict[str, Any] = {"api_key": self._api_key}
-        if self._cloud_id:
-            kwargs["cloud_id"] = self._cloud_id
+        kwargs: dict[str, Any] = {"api_key": self.api_key, "request_timeout": 30}
+        if self.cloud_id:
+            kwargs["cloud_id"] = self.cloud_id
         else:
-            kwargs["hosts"] = [self._url]
-        return AsyncElasticsearch(**kwargs)  # type: ignore[misc]
+            kwargs["hosts"] = [self.url]
 
-    async def connect(self) -> None:
-        if self._client is None and self.is_configured():
-            self._client = self._build_client()
+        self._es = Elasticsearch(**kwargs)
+        if not self._es.ping():
+            raise ESConnectionError("ping a Elasticsearch falló")
+        return self._es
 
-    async def close(self) -> None:
-        if self._client is not None:
-            await self._client.close()
-            self._client = None
-
-    async def ping(self) -> bool:
-        if not self.is_configured():
-            return False
-        await self.connect()
+    def healthy(self) -> bool:
         try:
-            return bool(await self._client.ping())  # type: ignore[union-attr]
-        except Exception:  # noqa: BLE001
-            return False
-
-    # ------------------------------------------------------------------
-    # Índice
-    # ------------------------------------------------------------------
-    def index_mapping(self) -> dict[str, Any]:
-        return {
-            "mappings": {
-                "properties": {
-                    "claim_hash": {"type": "keyword"},
-                    "claim_text": {"type": "text"},
-                    "claim_embedding": {
-                        "type": "dense_vector",
-                        "dims": EMBEDDING_DIMS,
-                        "index": True,
-                        "similarity": "cosine",
-                    },
-                    "veredicto": {"type": "keyword"},
-                    "analisis": {"type": "text"},
-                    "confianza": {"type": "float"},
-                    "fuente": {"type": "keyword"},
-                    "url": {"type": "keyword"},
-                    "idioma": {"type": "keyword"},
-                    "ttl_days": {"type": "integer"},
-                    "verified_at": {"type": "date"},
-                }
-            }
-        }
-
-    async def ensure_index(self) -> bool:
-        """Crea el índice si no existe. Devuelve True si está disponible."""
-        if not self.is_configured():
-            return False
-        await self.connect()
-        try:
-            exists = await self._client.indices.exists(index=self.index)  # type: ignore[union-attr]
-            if not exists:
-                await self._client.indices.create(  # type: ignore[union-attr]
-                    index=self.index, body=self.index_mapping()
-                )
-            return True
+            return self.connect().ping()
         except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Elastic ensure_index falló: {exc}")
+            logger.warning("Elastic health check fallido: %s", exc)
             return False
 
-    # ------------------------------------------------------------------
-    # Búsqueda híbrida (triage)
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
+    # Búsqueda para el triage
+    # ──────────────────────────────────────────────────────────────────────
     @staticmethod
-    def _is_fresh(doc: dict[str, Any]) -> bool:
-        ttl = int(doc.get("ttl_days", 30) or 30)
-        verified_at = doc.get("verified_at")
+    def _is_expired(source: dict[str, Any]) -> bool:
+        """True si el doc superó su `ttl_days` desde `verified_at`."""
+        verified_at = source.get("verified_at")
         if not verified_at:
-            return True
+            return False
         try:
             ts = datetime.fromisoformat(str(verified_at).replace("Z", "+00:00"))
         except ValueError:
-            return True
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        return (datetime.now(timezone.utc) - ts).days <= ttl
+            return False
+        ttl = int(source.get("ttl_days") or DEFAULT_TTL_DAYS)
+        return (datetime.now(timezone.utc) - ts).days > ttl
 
-    async def hybrid_search(
+    def hybrid_search(
         self,
+        claim_text: str,
         claim_embedding: list[float],
-        query_text: str,
-        top_k: int = 5,
+        *,
+        top_k: int = DEFAULT_TOP_K,
+        language: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Búsqueda híbrida kNN + BM25. Devuelve docs frescos con `_score`."""
-        if not self.is_configured():
-            return []
-        await self.connect()
+        """Recupera candidatos para el triage.
 
-        knn = {
+        ⚠️ Calibración de scores (ver ADR-0007):
+        - La DECISIÓN (early-exit/evidence) usa SOLO el score kNN. Con
+          `similarity: cosine`, Elasticsearch lo normaliza a [0, 1]
+          (`(1 + cos) / 2`), compatible con los umbrales 0.92 / 0.75.
+        - El match léxico BM25 NO participa en el umbral — su score no está
+          acotado (5, 10, 20+) y dispararía early-exits falsos. Solo se usa
+          para traer hits complementarios como evidencia, con `_score: 0.0`.
+        - Los docs vencidos por `ttl_days` se descartan (cache con expiración).
+        """
+        es = self.connect()
+        lang_filter = [{"term": {"language": language}}] if language else []
+
+        knn: dict[str, Any] = {
             "field": "claim_embedding",
             "query_vector": claim_embedding,
             "k": top_k,
             "num_candidates": max(50, top_k * 10),
         }
-        query = {"match": {"claim_text": {"query": query_text}}}
+        if lang_filter:
+            knn["filter"] = lang_filter
 
         try:
-            response = await self._client.search(  # type: ignore[union-attr]
-                index=self.index,
-                knn=knn,
-                query=query,
-                size=top_k,
-            )
-        except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Elastic hybrid_search falló: {exc}")
+            knn_resp = es.search(index=self.index, knn=knn, size=top_k)
+        except NotFoundError:
+            logger.warning("Índice '%s' no existe — ejecuta scripts/setup_elastic_index.py", self.index)
             return []
 
-        results: list[dict[str, Any]] = []
-        for hit in response.get("hits", {}).get("hits", []):
-            source = hit.get("_source", {})
-            if not self._is_fresh(source):
+        hits: list[dict[str, Any]] = []
+        seen_hashes: set[str] = set()
+        for h in knn_resp.get("hits", {}).get("hits", []):
+            src = h["_source"]
+            if self._is_expired(src):
                 continue
-            results.append({**source, "_score": hit.get("_score", 0.0)})
-        return results
+            hits.append({"_score": h["_score"], **src})
+            if src.get("claim_hash"):
+                seen_hashes.add(src["claim_hash"])
 
-    async def get_by_hash(self, claim_hash: str) -> dict[str, Any] | None:
-        """Recupera una verificación cacheada por hash exacto (si está fresca)."""
-        if not self.is_configured():
-            return None
-        await self.connect()
+        # BM25 complementario: solo aporta evidencia, nunca decide el umbral.
+        bm25_query: dict[str, Any] = {"match": {"claim_text": claim_text}}
+        if lang_filter:
+            bm25_query = {"bool": {"must": [bm25_query], "filter": lang_filter}}
         try:
-            doc = await self._client.get(  # type: ignore[union-attr]
-                index=self.index, id=claim_hash
-            )
-        except Exception:  # noqa: BLE001 - incluye NotFoundError
-            return None
-
-        source = doc.get("_source", {})
-        if source and self._is_fresh(source):
-            return source
-        return None
-
-    # ------------------------------------------------------------------
-    # Persistencia / memoria (write-back context layer)
-    # ------------------------------------------------------------------
-    async def index_verification(self, doc: dict[str, Any]) -> bool:
-        """Indexa (o reemplaza) una verificación usando `claim_hash` como id."""
-        if not self.is_configured():
-            return False
-        await self.connect()
-
-        payload = dict(doc)
-        payload.setdefault("ttl_days", int(os.getenv("CACHE_TTL_DAYS", "30")))
-        payload["verified_at"] = datetime.now(timezone.utc).isoformat()
-        claim_hash = payload.get("claim_hash")
-
-        try:
-            await self._client.index(  # type: ignore[union-attr]
-                index=self.index,
-                id=claim_hash,
-                document=payload,
-            )
-            return True
+            bm25_resp = es.search(index=self.index, query=bm25_query, size=top_k)
+            for h in bm25_resp.get("hits", {}).get("hits", []):
+                src = h["_source"]
+                if src.get("claim_hash") in seen_hashes or self._is_expired(src):
+                    continue
+                hits.append({"_score": 0.0, "_bm25_score": h["_score"], **src})
+        except NotFoundError:
+            pass
         except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Elastic index_verification falló: {exc}")
-            return False
+            logger.warning("BM25 complementario falló (no bloqueante): %s", exc)
+
+        return hits
+
+    def triage(
+        self,
+        claim_text: str,
+        claim_embedding: list[float],
+        *,
+        language: str | None = None,
+    ) -> dict[str, Any]:
+        """Aplica los umbrales `0.92 / 0.75` y devuelve la acción a tomar.
+
+        Acciones posibles:
+            * `"early_exit"`  → usar `cached` (un veredicto previo verificado).
+            * `"evidence"`    → usar `hits` como contexto, pero **no** salir.
+            * `"fresh"`       → no hay match útil; flujo completo desde cero.
+        """
+        hits = self.hybrid_search(claim_text, claim_embedding, language=language)
+        if not hits:
+            return {"action": "fresh", "score": 0.0, "hits": []}
+
+        best = hits[0]
+        score = float(best.get("_score", 0.0))
+        if score >= EARLY_EXIT_THRESHOLD:
+            return {"action": "early_exit", "score": score, "cached": best, "hits": hits}
+        if score >= EVIDENCE_THRESHOLD:
+            return {"action": "evidence", "score": score, "hits": hits}
+        return {"action": "fresh", "score": score, "hits": hits}
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Persistencia de veredictos
+    # ──────────────────────────────────────────────────────────────────────
+    def index_verification(
+        self,
+        *,
+        claim_text: str,
+        claim_embedding: list[float],
+        verdict_score: int,
+        category: str,
+        confidence: str,
+        reasoning: str,
+        evidence: list[dict[str, str]] | None = None,
+        language: str = "es",
+        source_domain: str | None = None,
+        ttl_days: int = DEFAULT_TTL_DAYS,
+    ) -> str:
+        """Indexa un veredicto consolidado y devuelve el `_id` del doc."""
+        es = self.connect()
+        doc_id = claim_hash(claim_text)
+        doc = {
+            "claim_text": claim_text,
+            "claim_embedding": claim_embedding,
+            "claim_hash": doc_id,
+            "language": language,
+            "verdict_score": verdict_score,
+            "category": category,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "evidence": evidence or [],
+            "source_domain": source_domain,
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+            "ttl_days": ttl_days,
+        }
+        es.index(index=self.index, id=doc_id, document=doc, refresh="wait_for")
+        return doc_id
+
+    def get_by_hash(self, claim_text: str) -> dict[str, Any] | None:
+        es = self.connect()
+        try:
+            doc = es.get(index=self.index, id=claim_hash(claim_text))
+            return doc["_source"]
+        except NotFoundError:
+            return None
 
 
-# Singleton perezoso para reutilizar la conexión en la app.
-_elastic_singleton: ElasticClient | None = None
+# Singleton accesible desde main.py / tools
+_default_client: ElasticClient | None = None
 
 
-def get_elastic_client() -> ElasticClient:
-    global _elastic_singleton
-    if _elastic_singleton is None:
-        _elastic_singleton = ElasticClient()
-    return _elastic_singleton
+def get_default_client() -> ElasticClient:
+    global _default_client
+    if _default_client is None:
+        _default_client = ElasticClient()
+    return _default_client

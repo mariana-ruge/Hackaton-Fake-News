@@ -4,8 +4,12 @@ Uso:
     python scripts/setup_firestore.py
 
 Requiere variables en .env:
-    PROJECT_ID=<gcp-project-id>
-    GOOGLE_APPLICATION_CREDENTIALS=<ruta/service-account.json>  (opcional si hay ADC)
+    GOOGLE_CLOUD_PROJECT=<gcp-project-id>
+
+Autenticación: Application Default Credentials (ADC).
+Antes de correr asegúrate de haber ejecutado:
+    gcloud auth application-default login
+    gcloud auth application-default set-quota-project <project-id>
 """
 
 from __future__ import annotations
@@ -42,9 +46,9 @@ def _load_env() -> str:
     else:
         load_dotenv()  # fallback: cwd
 
-    project_id = os.environ.get("PROJECT_ID")
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project_id:
-        print("[ERROR] PROJECT_ID no está definido en .env", file=sys.stderr)
+        print("[ERROR] GOOGLE_CLOUD_PROJECT no está definido en .env", file=sys.stderr)
         sys.exit(1)
     return project_id
 
