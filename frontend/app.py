@@ -1,12 +1,18 @@
 """
-Frontend tipo chat para consumir la API de VeritasAgent.
+Frontend tipo chat para VeritasAgent.
+
+Dos modos de ejecución, seleccionables con la variable FRONTEND_MODE:
+  - "api"    (default): llama a FastAPI en API_URL  → uvicorn main:app
+  - "direct":           usa el ADK runner directamente, sin FastAPI
 
 Ejecutar con:
     streamlit run frontend/app.py
+    FRONTEND_MODE=direct streamlit run frontend/app.py
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import requests
@@ -14,6 +20,53 @@ import streamlit as st
 
 
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
+FRONTEND_MODE = os.getenv("FRONTEND_MODE", "api").strip().lower()
+
+
+# ── Modo directo: carga el runner de main.py una sola vez ─────────────────
+@st.cache_resource(show_spinner="Cargando agente…")
+def _get_runner():
+    """Importa y devuelve el InMemoryRunner de main.py (singleton por proceso)."""
+    from main import runner  # noqa: PLC0415
+    return runner
+
+
+def _run_agent_direct(text: str, session_id: str) -> str:
+    """Invoca el runner ADK directamente y devuelve el texto de respuesta."""
+    from google.genai import types as genai_types  # noqa: PLC0415
+
+    runner = _get_runner()
+    user_id = "streamlit_user"
+
+    async def _invoke() -> str:
+        existing = await runner.session_service.get_session(
+            app_name=runner.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if existing is None:
+            await runner.session_service.create_session(
+                app_name=runner.app_name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+        respuesta = ""
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=genai_types.Content(
+                role="user",
+                parts=[genai_types.Part(text=text)],
+            ),
+        ):
+            try:
+                if hasattr(event, "is_final_response") and event.is_final_response():
+                    respuesta = event.content.parts[0].text
+            except Exception:  # noqa: BLE001
+                respuesta = str(event)
+        return respuesta or "El agente procesó la solicitud pero no devolvió respuesta."
+
+    return asyncio.run(_invoke())
 
 
 st.set_page_config(
@@ -107,6 +160,12 @@ st.markdown(
 
 
 def get_health() -> dict:
+    if FRONTEND_MODE == "direct":
+        try:
+            _get_runner()
+            return {"status": "online (directo)", "vertex_ai": "n/a", "firestore": "n/a", "project_id": os.getenv("GOOGLE_CLOUD_PROJECT", "—")}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "offline", "error": str(exc)}
     try:
         response = requests.get(f"{API_URL}/health", timeout=8)
         response.raise_for_status()
@@ -115,10 +174,13 @@ def get_health() -> dict:
         return {"status": "offline", "error": str(exc)}
 
 
-def analyze_news(text: str) -> dict:
+def analyze_news(text: str, session_id: str) -> dict:
+    if FRONTEND_MODE == "direct":
+        answer = _run_agent_direct(text, session_id)
+        return {"analisis": answer, "firestore_doc_id": None}
     response = requests.post(
         f"{API_URL}/analizar",
-        json={"texto_noticia": text},
+        json={"texto_noticia": text, "session_id": session_id},
         timeout=240,
     )
     response.raise_for_status()
@@ -135,6 +197,10 @@ if "messages" not in st.session_state:
             ),
         }
     ]
+
+if "session_id" not in st.session_state:
+    import uuid
+    st.session_state.session_id = f"s-{uuid.uuid4().hex[:12]}"
 
 
 health = get_health()
@@ -153,6 +219,7 @@ st.markdown(
             <span class="status-chip">Vertex AI: {vertex_ai}</span>
             <span class="status-chip">Firestore: {firestore}</span>
             <span class="status-chip">Proyecto: {project_id}</span>
+            <span class="status-chip">Modo: {FRONTEND_MODE}</span>
         </div>
     </section>
     """,
@@ -165,12 +232,14 @@ with st.sidebar:
     st.caption("Define API_URL si la API corre en otro host o puerto.")
 
     if st.button("Limpiar conversación", use_container_width=True):
+        import uuid
         st.session_state.messages = [
             {
                 "role": "assistant",
                 "content": "Conversación limpia. Envíame la siguiente noticia para analizar.",
             }
         ]
+        st.session_state.session_id = f"s-{uuid.uuid4().hex[:12]}"
         st.rerun()
 
 for message in st.session_state.messages:
@@ -192,7 +261,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Analizando la noticia..."):
             try:
-                result = analyze_news(prompt)
+                result = analyze_news(prompt, st.session_state.session_id)
                 answer = result.get("analisis") or "El agente no devolvió contenido."
                 doc_id = result.get("firestore_doc_id")
                 st.markdown(answer)
