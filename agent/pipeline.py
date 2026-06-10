@@ -15,6 +15,7 @@ Cada paso es opcional y degrada con elegancia si una dependencia falla.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, TypedDict
 
 from agent.tools.claim_parser import parsear_claims
@@ -93,10 +94,17 @@ async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResul
     pasos.append("[3] source_checker")
 
     # ── [4] Cross-Reference ───────────────────────────────────────────────
+    # La búsqueda web (Bright Data MCP) se limita a los primeros N claims:
+    # cada búsqueda arranca una sesión MCP (~segundos) y consume cuota.
+    max_busquedas = int(os.getenv("CROSS_REFERENCE_MAX_SEARCHES", "3"))
     triage_hits = triage_info.get("hits") or []
     evidencias: list[dict[str, Any]] = []
-    for c in claims or [{"id": "c1", "texto": texto}]:
-        ev = await contrastar(c["id"], c["texto"], triage_hits=triage_hits)
+    for i, c in enumerate(claims or [{"id": "c1", "texto": texto}]):
+        ev = await contrastar(
+            c["id"], c["texto"],
+            triage_hits=triage_hits,
+            buscar_web=(i < max_busquedas),
+        )
         evidencias.extend(ev)
     pasos.append(f"[4] cross_reference ({len(evidencias)} evidencias)")
 

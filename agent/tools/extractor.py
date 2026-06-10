@@ -1,8 +1,12 @@
 """[1] Extractor — obtiene el contenido de la noticia.
 
-Si la entrada empieza por http/https, intenta extraerla con `scraper.py`
-(Bright Data Scraping Browser). Para Bright Data MCP, ver
-`main.py::_fetch_url_with_brightdata` que vive en el contexto FastAPI.
+Cadena de extracción para URLs (de mejor a peor):
+  1. Bright Data MCP (`scrape_as_markdown`) — sortea anti-bot, sin navegador local.
+  2. `scraper.py` (Scraping Browser por WebSocket) — respaldo legado, requiere
+     BRIGHT_DATA_WS_URL que ya no está en .env.example.
+  3. Degradación: se analiza la URL como texto plano (el verdict lo reflejará).
+
+Si la entrada no es URL, se trata como texto directo.
 """
 
 from __future__ import annotations
@@ -10,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TypedDict
 from urllib.parse import urlparse
+
+from agent.mcp import brightdata_client
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +27,7 @@ class NoticiaExtraida(TypedDict, total=False):
     autor: str | None
     fecha_publicacion: str | None
     dominio: str | None
+    extractor_usado: str
 
 
 def _looks_like_url(text: str) -> bool:
@@ -32,7 +39,7 @@ async def extraer(entrada: str) -> NoticiaExtraida:
     text = (entrada or "").strip()
     if not text:
         return {"url": None, "titulo": "", "cuerpo": "", "autor": None,
-                "fecha_publicacion": None, "dominio": None}
+                "fecha_publicacion": None, "dominio": None, "extractor_usado": "none"}
 
     if not _looks_like_url(text):
         return {
@@ -42,15 +49,32 @@ async def extraer(entrada: str) -> NoticiaExtraida:
             "autor": None,
             "fecha_publicacion": None,
             "dominio": None,
+            "extractor_usado": "texto_directo",
         }
 
-    # Es URL: intentamos extraer con scraper.py (best-effort).
-    try:
-        from scraper import extraer_texto_noticia  # type: ignore
-        contenido = await extraer_texto_noticia(text)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[extractor] scraper.py falló: %s", exc)
-        contenido = text  # degradación
+    contenido: str | None = None
+    extractor_usado = "fallback_url_cruda"
+
+    # 1) Bright Data MCP
+    if brightdata_client.is_configured():
+        try:
+            contenido = await brightdata_client.scrape_url_markdown(text)
+            extractor_usado = "brightdata_mcp"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[extractor] Bright Data MCP falló: %s", exc)
+
+    # 2) Respaldo legado: Scraping Browser por WebSocket
+    if not contenido:
+        try:
+            from scraper import extraer_texto_noticia  # type: ignore
+            contenido = await extraer_texto_noticia(text)
+            extractor_usado = "scraping_browser_legacy"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[extractor] scraper.py falló: %s", exc)
+
+    # 3) Degradación final
+    if not contenido:
+        contenido = text
 
     dominio = urlparse(text).hostname
     return {
@@ -59,5 +83,6 @@ async def extraer(entrada: str) -> NoticiaExtraida:
         "cuerpo": contenido,
         "autor": None,
         "fecha_publicacion": None,
-        "dominio": dominio.lower().lstrip("www.") if dominio else None,
+        "dominio": dominio.lower().removeprefix("www.") if dominio else None,
+        "extractor_usado": extractor_usado,
     }

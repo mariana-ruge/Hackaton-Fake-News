@@ -29,6 +29,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Any
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -360,6 +361,10 @@ app = FastAPI(
 
 class NewsQuery(BaseModel):
     texto_noticia: str
+    # Opcional: pasa el mismo session_id para mantener una conversación
+    # continua con el agente. Si se omite, cada request usa una sesión
+    # nueva y aislada (sin contaminación entre usuarios).
+    session_id: str | None = None
 
 
 class ScrapeRequest(BaseModel):
@@ -409,17 +414,16 @@ def _mcp_response_to_text(response) -> str:
 async def _fetch_url_with_brightdata(url: str) -> str:
     """Obtiene contenido de una URL usando Bright Data MCP por stdio.
 
-    El servidor `@brightdata/mcp` expone una tool de scraping principal
-    (`scrape_as_markdown`) que devuelve la página en markdown limpio,
-    sorteando anti-bot automáticamente.
+    Usa `agent.mcp.brightdata_client` (SDK oficial `mcp`, sesión efímera)
+    en lugar de la API privada del MCPToolset de ADK — mismo servidor MCP,
+    cliente estable entre versiones.
     """
-    if brightdata_toolset is None:
+    from agent.mcp import brightdata_client
+    if not brightdata_client.is_configured():
         raise RuntimeError(
             "Bright Data MCP no está configurado (falta BRIGHTDATA_API_TOKEN)."
         )
-    session = await brightdata_toolset._mcp_session_manager.create_session()
-    response = await session.call_tool("scrape_as_markdown", arguments={"url": url})
-    return _mcp_response_to_text(response)
+    return await brightdata_client.scrape_url_markdown(url)
 
 
 @app.post("/analizar", summary="Analiza una noticia financiera o promesa de inversión")
@@ -435,7 +439,10 @@ async def analizar_noticia(query: NewsQuery):
     indexar aquí texto libre con placeholders envenenaría el caché del triage.
     """
     user_id = "api_user"
-    session_id = "default_session"
+    # Sesión aislada por request salvo que el cliente pida continuar una
+    # conversación pasando su session_id (evita contaminación entre usuarios
+    # y crecimiento sin límite del historial compartido).
+    session_id = query.session_id or f"s-{uuid4().hex[:12]}"
 
     # ── [0] Triage  ────────────────────────────────────────────────────────
     triage_info: dict[str, Any] = {"accion": "skipped", "score": 0.0}
@@ -474,6 +481,7 @@ async def analizar_noticia(query: NewsQuery):
             "analisis": respuesta,
             "firestore_doc_id": doc_id,
             "triage": triage_info,
+            "session_id": session_id,
         })
 
     # ── [1..6] Flujo completo con el agente LLM ───────────────────────────
@@ -531,6 +539,7 @@ async def analizar_noticia(query: NewsQuery):
             "analisis": respuesta_final,
             "firestore_doc_id": doc_id,
             "triage": triage_info,
+            "session_id": session_id,
         })
 
     except Exception as e:  # noqa: BLE001
