@@ -110,6 +110,7 @@
 - [x] **5.2** Estilos custom + chips de estado (Vertex AI, Firestore, proyecto).
 - [x] **5.3** Persistencia visual del análisis y `firestore_doc_id`.
 - [x] **5.3b** Modo dual del frontend (`FRONTEND_MODE=api|direct`): "direct" usa el runner ADK sin levantar FastAPI — útil para demos rápidas. ✨ Mariana, rama `Implement-ADK`.
+- [x] **5.5** **UI de demo `frontend/VeritasAgent.html`** (a partir del diseño generado con Claude): hero + chips con ejemplos de fraudes, tarjetas "cómo funciona", barra de entrada (sin selector de modelo ni hints de teclado), **pasos del pipeline animados en vivo, badge de early-exit ⚡ y veredicto con colores/score/banderas rojas/evidencias** — conectada al endpoint real `/analizar/multipaso`. Servida same-origin en `GET /` desde FastAPI. Cubre la visualización multipaso; el 5.4 (versión Streamlit) queda como opcional.
 - **5.4** Mostrar el pipeline multipaso en la UI (la mejor carta de la demo):
   - [ ] **5.4.1** Toggle "Modo: reactivo / multipaso" que elige el endpoint.
   - [ ] **5.4.2** Render del desglose: `pasos_ejecutados`, `triage` (badge de early-exit), `fuente`, `linguistico`, evidencias.
