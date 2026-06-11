@@ -30,6 +30,7 @@ from agent.tools.verdict import (
     confianza_a_nivel,
     emitir_veredicto,
 )
+from agent.tools.vision import extraer_de_imagen
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +49,73 @@ class PipelineResult(TypedDict, total=False):
     elastic_doc_id: str | None
     pasos_ejecutados: list[str]
     cacheado: bool
+    vision: dict[str, Any] | None
 
 
-async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResult:
-    """Ejecuta el flujo multi-paso completo y devuelve un resultado estructurado."""
+async def ejecutar_pipeline(
+    entrada: str,
+    language: str = "es",
+    *,
+    imagen: bytes | None = None,
+    imagen_mime: str | None = None,
+) -> PipelineResult:
+    """Ejecuta el flujo multi-paso completo y devuelve un resultado estructurado.
+
+    Si llega `imagen` (captura de pantalla), un paso previo [V] la transcribe
+    con Gemini Vision y el claim extraído alimenta el pipeline normal.
+    """
     pasos: list[str] = []
+    vision_info: dict[str, Any] | None = None
+    entrada_efectiva = (entrada or "").strip()
+
+    # ── [V] Visión (solo si llega imagen) ─────────────────────────────────
+    if imagen:
+        try:
+            vision_info = dict(await extraer_de_imagen(imagen, imagen_mime or ""))
+            extraido = (
+                vision_info.get("claim_principal")
+                or vision_info.get("texto_extraido")
+                or ""
+            )
+            if extraido:
+                entrada_efectiva = (
+                    f"{entrada_efectiva}\n\n[Texto extraído de la imagen]: {extraido}"
+                    if entrada_efectiva
+                    else extraido
+                )
+            pasos.append(
+                f"[V] visión ({len(vision_info.get('senales_visuales', []))} señales visuales)"
+            )
+        except ValueError:
+            # Input inválido del usuario (mime/tamaño) → el endpoint lo vuelve 400.
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[pipeline] visión falló: %s — sigo solo con el texto", exc)
+            pasos.append("[V] visión (falló — se continúa solo con texto)")
+
+    if not entrada_efectiva:
+        return {
+            "etiqueta": "Sin evidencia suficiente",
+            "confianza": 0.0,
+            "confianza_nivel": "baja",
+            "resumen": (
+                "La imagen no contiene texto legible ni una afirmación verificable, "
+                "y no se proporcionó texto adicional."
+            ),
+            "evidencias_clave": [],
+            "nota_neutralidad": None,
+            "triage": {"accion": "skipped", "score": 0.0},
+            "fuente": {},
+            "linguistico": {},
+            "claims": [],
+            "elastic_doc_id": None,
+            "pasos_ejecutados": pasos,
+            "cacheado": False,
+            "vision": vision_info,
+        }
 
     # ── [0] Triage ────────────────────────────────────────────────────────
-    triage_info = await triage_claim(entrada, language=language)
+    triage_info = await triage_claim(entrada_efectiva, language=language)
     pasos.append("[0] triage")
 
     # Early exit por caché propia
@@ -77,12 +137,13 @@ async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResul
             "elastic_doc_id": cached.get("claim_hash"),
             "pasos_ejecutados": pasos,
             "cacheado": True,
+            "vision": vision_info,
         }
 
     # ── [1] Extractor ─────────────────────────────────────────────────────
-    noticia = await extraer(entrada)
+    noticia = await extraer(entrada_efectiva)
     pasos.append("[1] extractor")
-    texto = noticia.get("cuerpo") or entrada
+    texto = noticia.get("cuerpo") or entrada_efectiva
     dominio = noticia.get("dominio")
 
     # ── [2] Claim Parser ──────────────────────────────────────────────────
@@ -90,7 +151,7 @@ async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResul
     pasos.append(f"[2] claim_parser ({len(claims)} claims)")
 
     # ── [3] Source Checker ────────────────────────────────────────────────
-    fuente = evaluar_fuente(noticia.get("url") or entrada)
+    fuente = evaluar_fuente(noticia.get("url") or entrada_efectiva)
     pasos.append("[3] source_checker")
 
     # ── [4] Cross-Reference ───────────────────────────────────────────────
@@ -110,6 +171,11 @@ async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResul
 
     # ── [5] Análisis lingüístico ──────────────────────────────────────────
     linguistico = await analizar_linguistico(texto, language=language)
+    # Las señales visuales de la captura cuentan como banderas rojas extra.
+    if vision_info and vision_info.get("senales_visuales"):
+        linguistico["banderas_rojas"] = [
+            f"visual: {s}" for s in vision_info["senales_visuales"]
+        ] + list(linguistico.get("banderas_rojas", []))
     pasos.append("[5] linguistic")
 
     # ── [6] Verdict ───────────────────────────────────────────────────────
@@ -157,4 +223,5 @@ async def ejecutar_pipeline(entrada: str, language: str = "es") -> PipelineResul
         "elastic_doc_id": elastic_doc_id,
         "pasos_ejecutados": pasos,
         "cacheado": False,
+        "vision": vision_info,
     }

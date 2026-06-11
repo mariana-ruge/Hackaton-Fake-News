@@ -117,6 +117,16 @@
     border-radius:var(--radius); padding:18px 20px; color:#fca5a5; font-size:14px; line-height:1.6;
   }
 
+  /* ── Imagen adjunta ───────────────────────────────── */
+  .attach-chip{
+    display:inline-flex; align-items:center; gap:9px;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:7px 10px; margin-bottom:9px; font-size:13px; color:var(--muted);
+  }
+  .attach-chip img{width:34px;height:34px;object-fit:cover;border-radius:7px}
+  .attach-chip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px}
+  .attach-chip button:hover{color:var(--red)}
+
   /* ── Barra de entrada ─────────────────────────────── */
   .inputbar{
     position:fixed; bottom:0; left:0; right:0;
@@ -225,9 +235,15 @@
 
 <div class="inputbar">
   <div class="inputbar-inner">
+    <div class="attach-chip" id="attachChip" style="display:none">
+      <img id="attachThumb" alt="Captura adjunta">
+      <span id="attachName"></span>
+      <button id="attachRemove" aria-label="Quitar imagen" title="Quitar imagen">✕</button>
+    </div>
     <div class="inputwrap">
       <textarea id="input" rows="1" placeholder="Escribe o pega aquí la noticia…"></textarea>
-      <button class="btn btn-clip" title="Próximamente: análisis de capturas de pantalla" aria-label="Adjuntar (próximamente)">📎</button>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <button class="btn btn-clip" id="clip" title="Adjuntar captura (PNG/JPEG/WebP, máx. 4 MB)" aria-label="Adjuntar captura de pantalla">📎</button>
       <button class="btn btn-send" id="send" aria-label="Verificar">➤</button>
     </div>
     <div class="input-note">VeritasAgent verifica, no asesora · Construido con Gemini + Elastic</div>
@@ -236,15 +252,15 @@
 
 <script>
 const API = new URLSearchParams(location.search).get('api') || '';
-const STEPS = [
-  ['[0]','Memoria semántica (triage)'],
-  ['[1]','Extracción del contenido'],
-  ['[2]','Claims verificables'],
-  ['[3]','Reputación de la fuente'],
-  ['[4]','Contraste con la web'],
-  ['[5]','Análisis del lenguaje'],
-  ['[6]','Veredicto'],
-  ['[7]','Guardando en memoria'],
+const STEPS_BASE = [
+  ['0','Memoria semántica (triage)'],
+  ['1','Extracción del contenido'],
+  ['2','Claims verificables'],
+  ['3','Reputación de la fuente'],
+  ['4','Contraste con la web'],
+  ['5','Análisis del lenguaje'],
+  ['6','Veredicto'],
+  ['7','Guardando en memoria'],
 ];
 const COLOR = t => /verdadero/i.test(t) ? 'green' : /engañoso/i.test(t) ? 'amber' : /falso/i.test(t) ? 'red' : 'gray';
 const $ = id => document.getElementById(id);
@@ -255,47 +271,90 @@ input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e
 document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => { input.value = c.dataset.text; input.dispatchEvent(new Event('input')); input.focus(); }));
 sendBtn.addEventListener('click', analizar);
 
-function renderSteps(){ $('steps').innerHTML = STEPS.map(([n,l],i) =>
-  `<div class="step" id="st${i}"><span class="dot"></span><span><strong>${n}</strong> ${l}</span></div>`).join(''); }
+/* ── Imagen adjunta (Gemini Vision en el backend) ───────────────────── */
+const fileInput = $('file');
+let pendingImage = null; // { b64, mime, name }
+
+$('clip').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0]; fileInput.value = '';
+  if (!f) return;
+  if (!['image/png','image/jpeg','image/webp'].includes(f.type)){
+    alert('Formato no soportado. Usa PNG, JPEG o WebP.'); return;
+  }
+  if (f.size > 4*1024*1024){ alert('La imagen supera el máximo de 4 MB.'); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    const dataUrl = String(r.result);
+    pendingImage = { b64: dataUrl.split(',')[1], mime: f.type, name: f.name };
+    $('attachThumb').src = dataUrl;
+    $('attachName').textContent = f.name;
+    $('attachChip').style.display = 'inline-flex';
+  };
+  r.readAsDataURL(f);
+});
+$('attachRemove').addEventListener('click', limpiarImagen);
+function limpiarImagen(){
+  pendingImage = null;
+  $('attachChip').style.display = 'none';
+  $('attachThumb').src = '';
+}
+
+/* ── Pasos del pipeline ─────────────────────────────────────────────── */
+let stepsNow = [];
+function renderSteps(conImagen){
+  stepsNow = conImagen
+    ? [['V','Lectura de la imagen (Gemini Vision)'], ...STEPS_BASE]
+    : [...STEPS_BASE];
+  $('steps').innerHTML = stepsNow.map(([id,l],i) =>
+    `<div class="step" id="st${i}"><span class="dot"></span><span><strong>[${id}]</strong> ${l}</span></div>`).join('');
+}
 
 let animTimer = null;
 function animateSteps(){
   let i = 0;
   const tick = () => {
     if (i>0){ const p=$('st'+(i-1)); p.classList.remove('active'); p.classList.add('done'); p.querySelector('.dot').textContent='✓'; }
-    if (i < STEPS.length-1){ $('st'+i).classList.add('active'); i++; animTimer = setTimeout(tick, 2600); }
+    if (i < stepsNow.length-1){ $('st'+i).classList.add('active'); i++; animTimer = setTimeout(tick, 2600); }
   };
   tick();
 }
 function finishSteps(pasos, cacheado){
   clearTimeout(animTimer);
-  const ran = new Set((pasos||[]).map(p => (p.match(/\[(\d)\]/)||[])[1]));
-  STEPS.forEach((_,i) => {
+  // Los pasos del backend vienen como "[V] visión (…)", "[0] triage", etc.
+  const ran = new Set((pasos||[]).map(p => (p.match(/\[([^\]]+)\]/)||[])[1]).filter(Boolean));
+  stepsNow.forEach(([id], i) => {
     const el = $('st'+i); el.classList.remove('active');
-    if (cacheado && i>0){ el.style.opacity='.35'; el.querySelector('span:last-child').insertAdjacentText('beforeend',' — omitido (early-exit)'); }
-    else if (ran.size===0 || ran.has(String(i))){ el.classList.add('done'); el.querySelector('.dot').textContent='✓'; }
-    else { el.style.opacity='.35'; }
+    const hecho = ran.size===0 ? true : ran.has(id);
+    if (hecho){ el.classList.add('done'); el.style.opacity='1'; el.querySelector('.dot').textContent='✓'; }
+    else {
+      el.style.opacity='.35';
+      if (cacheado) el.querySelector('span:last-child').insertAdjacentText('beforeend',' — omitido (early-exit)');
+    }
   });
-  if (cacheado){ const e0=$('st0'); e0.classList.add('done'); e0.style.opacity='1'; e0.querySelector('.dot').textContent='✓'; }
 }
 
 async function analizar(){
   const texto = input.value.trim();
-  if (!texto) return;
+  const img = pendingImage;
+  if (!texto && !img) return;
   sendBtn.disabled = true;
   $('analysis').style.display='block';
   $('result').style.display='none';
   $('errorBox').style.display='none';
-  renderSteps(); animateSteps();
+  renderSteps(!!img); animateSteps();
   $('analysis').scrollIntoView({behavior:'smooth'});
   const t0 = performance.now();
   try{
+    const body = { texto_noticia: texto };
+    if (img){ body.imagen_base64 = img.b64; body.imagen_mime = img.mime; }
     const r = await fetch(API + '/analizar/multipaso', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ texto_noticia: texto }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + (await r.text()).slice(0,300));
     const d = await r.json();
+    limpiarImagen();
     finishSteps(d.pasos_ejecutados, d.cacheado);
     mostrarResultado(d, Math.round(performance.now()-t0));
   }catch(err){

@@ -261,7 +261,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 | Endpoint | Qué hace |
 |---|---|
 | `POST /analizar` | Análisis **reactivo**: el LLM decide qué tools usar. Acepta `session_id` opcional para conversación continua |
-| `POST /analizar/multipaso` | Pipeline **determinista** [0]..[7]: devuelve `etiqueta`, `confianza`, `pasos_ejecutados`, evidencias y `cacheado` (early-exit <2 s si el claim ya fue verificado) |
+| `POST /analizar/multipaso` | Pipeline **determinista** [0]..[7]: devuelve `etiqueta`, `confianza`, `pasos_ejecutados`, evidencias y `cacheado` (early-exit <2 s si el claim ya fue verificado). Acepta opcionalmente una **captura de pantalla** (`imagen_base64`, PNG/JPEG/WebP ≤4 MB): el paso [V] la transcribe con Gemini Vision (ADR-0013) |
 | `POST /scrape` | Extrae una URL como markdown limpio vía Bright Data MCP |
 | `GET /historial?limit=N` | Últimos N análisis desde Firestore |
 | `GET /health` | Modo de auth, Vertex AI, Firestore y estado de los 3 MCPs |

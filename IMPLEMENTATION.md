@@ -9,7 +9,7 @@
 **Stack actual (rama Bright):** Gemini 2.5 Flash · Google ADK · Vertex AI / API key (auth dual) · FastAPI · Streamlit · **Firestore (log) + Elastic (memoria semántica)** · **Elastic MCP** 🟢 (track) · **Bright Data MCP** · **Arize Phoenix MCP** (bonus).
 
 **Track del reto:** 🟢 **Elastic** (`Pick one and build with their MCP server`).
-**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (12 ADRs).
+**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (13 ADRs).
 
 > **Regla del documento:** cada tema vive en UNA sola fase (checkboxes canónicos).
 > El "Runbook" final solo ordena referencias — no duplica checkboxes.
@@ -78,6 +78,7 @@
 - [x] **2.7a** Prompt `prompts/verdict.es.txt`.
 - [x] **2.7b** `tools/verdict.py` — **REAL** (8.5.2): emite veredicto estructurado + mapeos `etiqueta→categoría` y `confianza→nivel`.
 - [x] **2.8** `tools/persistence.py` — **REAL** (8.1.6): indexa el veredicto en Elastic con embedding (paso [7] del pipeline).
+- [x] **2.9** `tools/vision.py` — **NUEVO** (ADR-0013): paso [V] — Gemini Vision transcribe capturas de pantalla (PNG/JPEG/WebP ≤4 MB) y extrae claim + señales visuales; el claim alimenta el pipeline normal. Las señales entran como banderas rojas `visual:`. Expuesto en `/analizar/multipaso` (`imagen_base64`) y en el clip 📎 de `VeritasAgent.html`.
 
 ---
 
