@@ -4,7 +4,7 @@
 
 ### Agente verificador de **noticias financieras** y detector de fraudes de inversión
 
-**Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Firestore · Bright Data**
+**Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Arize Phoenix · Firestore · Bright Data**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -41,6 +41,10 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
 | 📊 **Métrica de riesgo** | Etiqueta cada caso con incertidumbre Alta / Media / Baja |
 | ⏳ **Línea de tiempo** | Reconstruye cómo evolucionó la narrativa en titulares serios |
 | 🌍 **Aclaración geopolítica** | Nota de neutralidad obligatoria cuando la noticia involucra gobiernos o líderes |
+| 📸 **Acepta pantallazos** | Sube la captura de WhatsApp/Instagram: Gemini Vision la transcribe y detecta señales visuales del fraude (ADR-0013) |
+| ⚡ **Memoria con early-exit** | Bulos ya verificados se responden en <2 s desde Elastic, con badge de cacheado |
+| 📈 **Observabilidad** | Trazas en Arize Phoenix de cada llamada del agente |
+
 ---
 
 ## 🏗️ Arquitectura
@@ -66,13 +70,13 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
 │ + los 3 MCPs ↓          │   │ [7] persist     (ADR-0010)      │
 └──────────┬──────────────┘   └────────────┬─────────────────────┘
            └──────────────┬────────────────┘
-    ┌─────────────────────┼
-┌───▼──────────┐  ┌───────▼────────┐  
-│ 🟢 Elastic   │  │ Bright Data    │  
-│ MCP (track)  │  │ MCP            │  
-│ triage +     │  │ scraping +     │  
-│ memoria      │  │ búsqueda web   │  
-└──────────────┘  └────────────────┘  
+    ┌─────────────────────┼──────────────────────┐
+┌───▼──────────┐  ┌───────▼────────┐  ┌──────────▼─────┐
+│ 🟢 Elastic   │  │ Bright Data    │  │ Arize Phoenix  │
+│ MCP (track)  │  │ MCP            │  │ MCP (bonus)    │
+│ triage +     │  │ scraping +     │  │ datasets +     │
+│ memoria      │  │ búsqueda web   │  │ trazas OTel    │
+└──────────────┘  └────────────────┘  └────────────────┘
         │
 ┌───────▼─────┐   ┌──────────────┐
 │  Firestore  │   │  Vertex AI   │
@@ -113,8 +117,9 @@ El agente recibe el texto y ejecuta el siguiente flujo conceptual (definido en s
 | Backend | **FastAPI + Uvicorn** |
 | Frontend | **Streamlit** (chat) |
 | 🟢 **Track partner del reto** | **Elastic MCP** (triage + memoria semántica) |
-| MCPs adicionales | **Bright Data MCP** (scraping + búsqueda web) 
+| MCPs adicionales | **Bright Data MCP** (scraping + búsqueda web) · **Arize Phoenix MCP** (datasets + trazas) |
 | Persistencia | **Firestore** (log operativo) · **Elastic** (memoria semántica con embeddings, TTL) |
+| Observabilidad | **Arize Phoenix** + OpenTelemetry |
 | Embeddings | `text-embedding-004` (768 dims, agnóstico al modo de auth) |
 | Despliegue | **Cloud Run** + **Vertex AI Agent Engine** |
 | Lenguaje | Python 3.11+ |
@@ -135,15 +140,18 @@ Hackaton-Fake-News/
 │
 ├── main.py                     # FastAPI + agente reactivo + endpoints
 ├── scraper.py                  # Scraping Browser (respaldo legado)
+├── run_adk.py · agent_garden.py        # runners ADK locales
+├── verificar_fake_news/agent.py        # paquete ADK (agent garden)
 │
 ├── docs/
 │   ├── architecture.md         # diagramas mermaid de la vista actual
-│   └── adr/                    # 12 decisiones arquitectónicas con su porqué
+│   └── adr/                    # 14 decisiones arquitectónicas con su porqué
 │
 ├── agent/
 │   ├── genai_client.py         # cliente Gemini dual ADC/API-key (ADR-0006)
 │   ├── llm_client.py           # prompts plantilla → JSON estructurado
-│   ├── pipeline.py             # orquestador multipaso [0]..[7] (ADR-0010)
+│   ├── pipeline.py             # orquestador multipaso [V]+[0]..[7] (ADR-0010)
+│   ├── engine_app.py           # AdkApp para Vertex AI Agent Engine (6.7)
 │   ├── tools/                  # ✅ todas implementadas
 │   │   ├── triage.py           # [0] early-exit semántico (ADR-0007)
 │   │   ├── extractor.py        # [1] Bright Data MCP → scraper → texto
@@ -153,6 +161,7 @@ Hackaton-Fake-News/
 │   │   ├── linguistic.py       # [5] alarmismo/clickbait/banderas rojas
 │   │   ├── verdict.py          # [6] veredicto estructurado
 │   │   ├── persistence.py      # [7] indexa en Elastic con embedding
+│   │   ├── vision.py           # [V] capturas → claim (Gemini Vision, ADR-0013)
 │   │   └── embeddings.py       # 768 dims, cache LRU, agnóstico al auth
 │   ├── mcp/
 │   │   ├── elastic_client.py   # conexión + búsqueda kNN/BM25 + TTL
@@ -160,15 +169,17 @@ Hackaton-Fake-News/
 │   │   └── local_cache.py      # respaldo offline (no se usa en prod)
 │   ├── data/
 │   │   └── factcheckers.json   # 21 dominios curados (medios + reguladores)
-│   └── prompts/                # claim_parser.es · linguistic.es · verdict.es
+│   └── prompts/                # _agent_prompt.py (fuente única) + claim_parser/linguistic/verdict .es
 │
 ├── frontend/
-│   └── app.py                  # chat Streamlit
+│   ├── VeritasAgent.html       # 🌟 landing de demo (GET /, ADR-0014): pasos en vivo + clip 📎
+│   └── app.py                  # chat Streamlit alternativo (FRONTEND_MODE=api|direct)
 │
 ├── scripts/
 │   ├── setup_firestore.py      # permisos + config doc
 │   ├── setup_elastic_index.py  # índice verified_claims (dense_vector 768)
-│   └── seed_factcheckers.py    # genera agent/data/factcheckers.json
+│   ├── seed_factcheckers.py    # genera agent/data/factcheckers.json
+│   └── deploy_agent_engine.py  # despliegue a Vertex AI Agent Engine
 │
 └── tests/
     ├── test_triage.py          # hash, umbrales, TTL (+ ping con skipif)
@@ -186,6 +197,7 @@ Hackaton-Fake-News/
 - **gcloud CLI** ([instalación](https://cloud.google.com/sdk/docs/install)) — solo para el modo A (ADC)
 - Cluster de **Elasticsearch** (Elastic Cloud free trial o self-hosted) — 🟢 track del reto
 - Cuenta en **Bright Data** (API token + zona Web Unlocker)
+- Cuenta en **Arize Phoenix** (API key) — opcional, habilita telemetría + bonus MCP
 - Proyecto de **Google Cloud** con Vertex AI y Firestore — solo para el modo A
 
 ### Pasos
@@ -199,7 +211,6 @@ cd Hackaton-Fake-News
 python -m venv .venv
 # Windows
 .venv\Scripts\activate
-.\.venv\Scripts\Activate.ps1  
 # macOS / Linux
 source .venv/bin/activate
 
@@ -254,12 +265,14 @@ python scripts/seed_factcheckers.py
 
 ## ▶️ Uso
 
-### Backend (FastAPI)
+### Backend + UI de demo (un solo proceso)
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# → abre http://localhost:8000/  ← la landing de demo (pasos en vivo + clip 📎)
 ```
 | Endpoint | Qué hace |
 |---|---|
+| `GET /` | **Landing de demo** (`VeritasAgent.html`, ADR-0014): chips de ejemplos, pasos del pipeline animados, early-exit ⚡ y veredicto con colores |
 | `POST /analizar` | Análisis **reactivo**: el LLM decide qué tools usar. Acepta `session_id` opcional para conversación continua |
 | `POST /analizar/multipaso` | Pipeline **determinista** [0]..[7]: devuelve `etiqueta`, `confianza`, `pasos_ejecutados`, evidencias y `cacheado` (early-exit <2 s si el claim ya fue verificado). Acepta opcionalmente una **captura de pantalla** (`imagen_base64`, PNG/JPEG/WebP ≤4 MB): el paso [V] la transcribe con Gemini Vision (ADR-0013) |
 | `POST /scrape` | Extrae una URL como markdown limpio vía Bright Data MCP |
@@ -307,11 +320,14 @@ El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 - [x] Frontend Streamlit (chat reactivo)
 - [x] 🟢 **Track Elastic**: Elastic MCP + índice `verified_claims` + triage semántico con early-exit (falta solo el cluster real)
 - [x] **Bright Data MCP** sustituye a Brave + Fetch + Scraping Browser
+- [x] **Arize Phoenix MCP** como bonus partner
 - [x] Pipeline **multi-paso determinista** (`/analizar/multipaso`)
 - [x] Auth dual ADC / API key
-- [ ] Frontend: vista del pipeline multipaso (pasos en vivo + early-exit)
+- [x] **Landing de demo** (`GET /`): pasos en vivo, early-exit ⚡, veredicto con colores (ADR-0014)
+- [x] **Entrada multimodal**: capturas de pantalla vía Gemini Vision, clip 📎 funcional (ADR-0013)
+- [x] Módulo **Agent Engine** (`agent/engine_app.py`) + script de deploy
 - [ ] Smoke test end-to-end con credenciales reales
-- [ ] Despliegue en Cloud Run + Agent Engine
+- [ ] Despliegue en Cloud Run + ejecutar deploy a Agent Engine
 - [ ] Demo + entrega Devpost
 
 ---

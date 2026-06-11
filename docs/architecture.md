@@ -16,8 +16,9 @@ flowchart TB
     subgraph Backend["Backend · Cloud Run"]
         API["⚡ FastAPI<br/>main.py"]
         subgraph Endpoints["Endpoints"]
+            E0["/ (landing demo<br/>VeritasAgent.html)"]
             E1["/analizar<br/>(reactivo)"]
-            E2["/analizar/multipaso<br/>(determinista)"]
+            E2["/analizar/multipaso<br/>(determinista + imagen)"]
             E3["/scrape"]
             E4["/historial"]
             E5["/health"]
@@ -79,8 +80,13 @@ sequenceDiagram
     participant SC as source_checker.py
     participant FS as Firestore
 
-    User->>API: POST { texto_noticia }
-    API->>P: ejecutar_pipeline(texto)
+    User->>API: POST { texto_noticia, imagen_base64? }
+    API->>P: ejecutar_pipeline(texto, imagen?)
+
+    opt llega una captura de pantalla (ADR-0013)
+        Note over P,LLM: [V] Gemini Vision transcribe la imagen;<br/>el claim extraído alimenta el resto del flujo
+        P->>LLM: extraer_de_imagen(bytes, mime)
+    end
 
     rect rgb(220, 240, 220)
         Note over P,ES: [0] Triage (Elastic)
@@ -213,6 +219,7 @@ flowchart LR
             T5["linguistic.py [5]"]
             T6["verdict.py [6]"]
             T7["persistence.py [7]"]
+            TV["vision.py [V]<br/>(capturas, ADR-0013)"]
             EMB["embeddings.py"]
         end
 
@@ -229,6 +236,7 @@ flowchart LR
 
     LLM --> GENAI
     EMB --> GENAI
+    PIPE --> TV --> GENAI
     PIPE --> T0 --> EC
     PIPE --> T1 --> BD
     T4 --> BD
@@ -294,8 +302,9 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 
 | Método | Ruta | Modo | Cuándo usar |
 |---|---|---|---|
-| POST | `/analizar` | Reactivo (LlmAgent decide) | Análisis exploratorio, preguntas libres |
-| POST | `/analizar/multipaso` | Determinista (pipeline.py) | Demo del reto, casos repetibles, early-exit garantizado |
+| GET | `/` | Landing demo (`VeritasAgent.html`, ADR-0014) | UI principal: pasos en vivo, early-exit ⚡, clip 📎 |
+| POST | `/analizar` | Reactivo (LlmAgent decide) | Análisis exploratorio, preguntas libres. `session_id` opcional |
+| POST | `/analizar/multipaso` | Determinista (pipeline.py) | Demo del reto, early-exit garantizado. Acepta `imagen_base64` (PNG/JPEG/WebP ≤4 MB, ADR-0013) |
 | POST | `/scrape` | Bright Data MCP | Extracción de URL como markdown |
 | GET | `/historial?limit=N` | Firestore | Auditoría rápida sin búsqueda semántica |
 | GET | `/health` | Diagnóstico | Estado de auth, MCPs, telemetría, índices |
@@ -310,6 +319,8 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 | Producto / alcance | [ADR-0003](adr/0003-dominio-fake-news-financieras.md) |
 | Datos / persistencia | [ADR-0005](adr/0005-persistencia-doble-capa.md), [ADR-0007](adr/0007-triage-umbrales-early-exit.md) |
 | MCPs / partners | [ADR-0004](adr/0004-track-partner-elastic.md), [ADR-0008](adr/0008-bright-data-mcp-reemplaza-brave-fetch.md), [ADR-0009](adr/0009-arize-phoenix-bonus-partner.md), [ADR-0011](adr/0011-acceso-mcp-desde-pipeline.md) |
+| API / multimodal | [ADR-0013](adr/0013-entrada-multimodal-imagenes.md) |
+| UI / frontends | [ADR-0014](adr/0014-dos-frontends-landing-html.md) |
 | Auth / despliegue | [ADR-0006](adr/0006-auth-gemini-dual-adc-api-key.md) |
 | Gobernanza / proceso git | [ADR-0012](adr/0012-resolucion-merge-bright-canonica.md) |
 | Legal | [ADR-0002](adr/0002-licencia-apache-2-0.md) |
