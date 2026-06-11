@@ -43,13 +43,15 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
                             │ HTTPS
 ┌───────────────────────────▼──────────────────────────────────┐
 │  Backend: FastAPI (Cloud Run)                                │
-│  Endpoints: /analizar  /scrape  /health                      │
+│  / (UI demo) · /analizar · /analizar/multipaso               │
+│  /scrape · /historial · /health                              │
 └───────────────────────────┬──────────────────────────────────┘
                             │
 ┌───────────────────────────▼──────────────────────────────────┐
 │  Agente: ADK desplegado en Vertex AI Agent Engine            │
 │  Modelo de razonamiento: Gemini 2.5 Flash                    │
 │                                                              │
+│   [V] Visión (si llega captura — Gemini Vision, ADR-0013)    │
 │   [0] Triage (Elastic MCP) ──► early-exit si match fuerte    │
 │   [1] Extractor (Bright Data MCP)                            │
 │   [2] Claim Parser (Gemini)                                  │
@@ -201,8 +203,11 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 >   Modo A/ADC. Se despliega con `scripts/deploy_agent_engine.py` (Fase 6.7, ver ADR-0012).
 >   `config.py` tampoco existe — la config vive en `agent/genai_client.py` + env vars.
 > - Se añadieron piezas no previstas: `agent/pipeline.py` (orquestador multipaso),
->   `agent/llm_client.py`, `agent/genai_client.py` (auth dual), `agent/data/factcheckers.json`,
->   `docs/` (architecture + 12 ADRs) y `scraper.py` (respaldo legado).
+>   `agent/llm_client.py`, `agent/genai_client.py` (auth dual),
+>   `agent/tools/vision.py` (capturas de pantalla, ADR-0013),
+>   `frontend/VeritasAgent.html` (landing de demo en `GET /`, ADR-0014),
+>   `agent/data/factcheckers.json`, `docs/` (architecture + 14 ADRs),
+>   los runners locales `run_adk.py`/`agent_garden.py` y `scraper.py` (respaldo legado).
 > - Los prompts existen solo en `es` por ahora (`.en` planificado).
 
 ---

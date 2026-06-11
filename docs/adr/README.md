@@ -86,6 +86,7 @@ La elección, en una frase si es posible.
 | [0011](0011-acceso-mcp-desde-pipeline.md) | Acceso a MCPs desde el pipeline: SDK `mcp` directo con sesiones efímeras | Accepted | mcp, patrón |
 | [0012](0012-resolucion-merge-bright-canonica.md) | Resolución del merge: la arquitectura de `Bright` es la canónica | Accepted | gobernanza, git |
 | [0013](0013-entrada-multimodal-imagenes.md) | Entrada multimodal: capturas de pantalla vía Gemini Vision (paso [V]) | Accepted | api, multimodal |
+| [0014](0014-dos-frontends-landing-html.md) | Dos frontends: landing HTML same-origin (demo) + Streamlit alternativo | Accepted | ui, despliegue |
 
 ---
 

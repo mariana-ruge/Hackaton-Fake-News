@@ -9,7 +9,7 @@
 **Stack actual (rama Bright):** Gemini 2.5 Flash · Google ADK · Vertex AI / API key (auth dual) · FastAPI · Streamlit · **Firestore (log) + Elastic (memoria semántica)** · **Elastic MCP** 🟢 (track) · **Bright Data MCP** · **Arize Phoenix MCP** (bonus).
 
 **Track del reto:** 🟢 **Elastic** (`Pick one and build with their MCP server`).
-**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (13 ADRs).
+**Documentación arquitectónica:** [`docs/architecture.md`](docs/architecture.md) · [`docs/adr/`](docs/adr/) (14 ADRs).
 
 > **Regla del documento:** cada tema vive en UNA sola fase (checkboxes canónicos).
 > El "Runbook" final solo ordena referencias — no duplica checkboxes.
@@ -103,6 +103,7 @@
   - [ ] **4.5.3** `/analizar/multipaso` con un Ponzi típico → veredicto + `pasos_ejecutados`.
   - [ ] **4.5.4** Repetir el mismo claim → `cacheado: true` y latencia <2 s.
   - [ ] **4.5.5** Confirmar logs en Firestore y doc en Elastic.
+  - [ ] **4.5.6** Subir una captura con el clip 📎 → ver el paso `[V]` y las señales visuales (valida la llamada real a Gemini Vision, ADR-0013).
 
 ---
 
@@ -112,11 +113,11 @@
 - [x] **5.3** Persistencia visual del análisis y `firestore_doc_id`.
 - [x] **5.3b** Modo dual del frontend (`FRONTEND_MODE=api|direct`): "direct" usa el runner ADK sin levantar FastAPI — útil para demos rápidas. ✨ Mariana, rama `Implement-ADK`.
 - [x] **5.5** **UI de demo `frontend/VeritasAgent.html`** (a partir del diseño generado con Claude): hero + chips con ejemplos de fraudes, tarjetas "cómo funciona", barra de entrada (sin selector de modelo ni hints de teclado), **pasos del pipeline animados en vivo, badge de early-exit ⚡ y veredicto con colores/score/banderas rojas/evidencias** — conectada al endpoint real `/analizar/multipaso`. Servida same-origin en `GET /` desde FastAPI. Cubre la visualización multipaso; el 5.4 (versión Streamlit) queda como opcional.
-- **5.4** Mostrar el pipeline multipaso en la UI (la mejor carta de la demo):
-  - [ ] **5.4.1** Toggle "Modo: reactivo / multipaso" que elige el endpoint.
-  - [ ] **5.4.2** Render del desglose: `pasos_ejecutados`, `triage` (badge de early-exit), `fuente`, `linguistico`, evidencias.
-  - [ ] **5.4.3** `etiqueta` con color (verde/ámbar/rojo) + `confianza_nivel`.
-  - [ ] **5.4.4** Chips de estado de los 3 MCPs (ya disponibles en `/health`).
+- **5.4** Mostrar el pipeline multipaso en la UI → ✅ **cubierto por 5.5** (landing HTML, ADR-0014). Esta versión Streamlit queda **opcional**:
+  - [ ] **5.4.1** (opcional) Toggle "Modo: reactivo / multipaso" en Streamlit.
+  - [ ] **5.4.2** (opcional) Render del desglose en Streamlit.
+  - [ ] **5.4.3** (opcional) Colores por etiqueta en Streamlit.
+  - [ ] **5.4.4** (opcional) Chips de estado de los 3 MCPs en Streamlit.
 
 ---
 
@@ -181,10 +182,10 @@
 ## FASE 6 — Despliegue (Google Cloud)
 - [x] **6.1** `Dockerfile` del backend (Playwright 1.49 + Node 20 para los MCPs + uvicorn).
 - [ ] **6.2** `cloudbuild.yaml` para Cloud Run (backend FastAPI).
-- [ ] **6.3** `Dockerfile`/servicio para **Streamlit** (separado del backend).
+- [ ] **6.3** (opcional, ADR-0014) `Dockerfile`/servicio para **Streamlit** — la landing de demo ya viaja en el contenedor del backend (`GET /`).
 - [ ] **6.4** **Secret Manager** para `API_KEY_PHOENIX`, `ELASTIC_API_KEY`, `BRIGHTDATA_API_TOKEN`.
 - [ ] **6.5** Desplegar backend en **Cloud Run** (us-central1).
-- [ ] **6.6** Desplegar frontend en **Cloud Run** apuntando a la URL del backend.
+- [ ] **6.6** (opcional, ADR-0014) Desplegar Streamlit en **Cloud Run** apuntando a la URL del backend.
 - [~] **6.7** Desplegar el agente a **Vertex AI Agent Engine** (solo modo A — ADC, ver ADR-0006).
   - [x] **6.7.1** `agent/engine_app.py` — `AdkApp` con `GlobalGemini` (endpoint global para Gemini 2.x), guardia de Modo A, prompt desde fuente única (`agent/prompts/_agent_prompt.py`). ✨ Mariana, rama `Implement-ADK`.
   - [x] **6.7.2** `scripts/deploy_agent_engine.py` — deploy con prereq-checks, `--staging-bucket` y `--test-query`. ✨ Mariana.
@@ -236,7 +237,7 @@
 | 1 | Rotar claves expuestas | **S.1** | 🙋 Tú | 10 min |
 | 2 | Cuentas y credenciales (ADC, APIs, Elastic Cloud, Bright Data, dataset Phoenix) | **0.5.2–0.5.7**, **8.1.1**, **8.2.1**, **8.3.1** | 🙋 Tú | ~45 min |
 | 3 | Artefactos de deploy (cloudbuild + Dockerfile Streamlit) | **6.2**, **6.3** | 🤖 | ~1 h |
-| 4 | Frontend multipaso | **5.4.1–5.4.4** | 🤖 | ~1.5 h |
+| 4 | Frontend multipaso → ✅ hecho como landing HTML (**5.5**) + clip 📎 (**2.9**) | **5.5** | 🤖 | hecho |
 | 5 | Smoke test end-to-end | **4.5.1–4.5.5** | 🤝 Juntos | ~30 min |
 | 6 | Decisiones: purga historia + protección API | **S.2**, **S.3** | 🙋 Tú + Mariana | decisión |
 | 7 | Deploy (Secret Manager, Cloud Run ×2, Agent Engine, URL) | **6.4–6.8** | 🤝 Juntos | ~3 h |
