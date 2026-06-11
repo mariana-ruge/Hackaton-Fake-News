@@ -15,8 +15,13 @@ Criterios:
 - "engañoso": parte cierto, parte fuera de contexto o exagerado.
 - "falso": evidencias claras lo refutan.
 - "no_verificable": no hay evidencia suficiente.
+- Consistencia temporal obligatoria: usa FECHA_ACTUAL como referencia.
+- Si una fecha mencionada es anterior o igual a FECHA_ACTUAL, NO la trates como evento futuro.
+- Si el contenido habla de hechos futuros sin evidencia verificable, explícitalo con precisión.
 
 Entrada:
+FECHA_ACTUAL: {fecha_actual}
+CONTEXTO_TEMPORAL: {contexto_temporal}
 CLAIMS: {claims}
 EVIDENCIAS: {evidencias}
 FUENTE: {fuente}

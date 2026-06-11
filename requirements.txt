@@ -6,7 +6,7 @@ google-adk>=1.14.1
 # Google Cloud
 google-cloud-aiplatform>=1.71.0
 google-cloud-firestore>=2.19.0
-google-cloud-storage>=2.19.0
+google-cloud-storage>=3.0.0
 
 # Gemini
 google-genai>=1.14.0

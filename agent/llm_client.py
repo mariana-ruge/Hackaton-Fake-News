@@ -34,6 +34,26 @@ def load_prompt(name: str, language: str = "es") -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _render_prompt(template: str, variables: dict[str, Any] | None) -> str:
+    """Reemplaza placeholders `{var}` sin interpretar llaves JSON literales.
+
+    Evita `str.format(...)` porque los prompts incluyen ejemplos JSON con `{}`.
+    """
+    if not variables:
+        return template
+
+    pattern = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in variables:
+            value = variables[key]
+            return "" if value is None else str(value)
+        return match.group(0)
+
+    return pattern.sub(_replace, template)
+
+
 def _strip_code_fences(text: str) -> str:
     """Quita ```json ... ``` si el modelo los devuelve."""
     text = text.strip()
@@ -69,7 +89,7 @@ async def generate_json(
 ) -> Any:
     """Renderiza un prompt, lo manda a Gemini y devuelve el JSON parseado."""
     template = load_prompt(prompt_name, language)
-    rendered = template.format(**variables) if variables else template
+    rendered = _render_prompt(template, variables)
 
     cfg = get_config()
     client = get_client()

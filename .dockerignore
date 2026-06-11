@@ -1,0 +1,51 @@
+# Secretos y entorno
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+service-account*.json
+gcp-credentials*.json
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache/build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing y reportes
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Artefactos y logs
+*.log
+tmp/
+data/local/
+
+# Git metadata
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+.dockerignore
