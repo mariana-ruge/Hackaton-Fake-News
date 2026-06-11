@@ -1,4 +1,4 @@
-"""Script de despliegue del agente VeritasAgent en Vertex AI Agent Engine.
+"""Script de despliegue del agente Blacklight Expose en Vertex AI Agent Engine.
 
 Ejecutar (con ADC activo y Modo A configurado en .env):
 
@@ -49,7 +49,7 @@ def _check_prereqs() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Despliega VeritasAgent en Vertex AI Agent Engine")
+    parser = argparse.ArgumentParser(description="Despliega Blacklight Expose en Vertex AI Agent Engine")
     parser.add_argument(
         "--staging-bucket",
         default=os.getenv("AGENT_ENGINE_STAGING_BUCKET"),
@@ -58,8 +58,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--display-name",
-        default="VeritasAgent",
-        help="Nombre a mostrar en la consola de Agent Engine (default: VeritasAgent)",
+        default="Blacklight Expose",
+        help="Nombre a mostrar en la consola de Agent Engine (default: Blacklight Expose)",
     )
     parser.add_argument(
         "--test-query",

@@ -1,4 +1,4 @@
-"""Crea (o recrea) el índice de Elasticsearch para VeritasAgent.
+"""Crea (o recrea) el índice de Elasticsearch para Blacklight Expose.
 
 Uso:
     python scripts/setup_elastic_index.py             # crea si no existe
@@ -113,7 +113,7 @@ def _create_index(es: Elasticsearch, index: str, recreate: bool = False) -> None
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Setup del índice Elastic de VeritasAgent")
+    parser = argparse.ArgumentParser(description="Setup del índice Elastic de Blacklight Expose")
     parser.add_argument(
         "--recreate",
         action="store_true",

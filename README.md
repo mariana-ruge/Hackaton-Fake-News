@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🛡️ VeritasAgent
+# 🔦 Blacklight Expose
 
-### Agente verificador de **noticias financieras** y detector de fraudes de inversión
+### La luz ultravioleta que revela el fraude: verificador de **noticias financieras** y detector de estafas de inversión
 
 **Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Arize Phoenix · Firestore · Bright Data**
 
@@ -26,7 +26,7 @@ La desinformación financiera se propaga como pólvora: titulares alarmistas sob
 
 ## 💡 La solución
 
-**VeritasAgent** es un agente que recibe **un titular económico, una promesa de inversión, una URL o una publicación sospechosa** y devuelve un **análisis estructurado con contexto, riesgo y evidencia**, citando fuentes financieras rigurosas.
+**Blacklight Expose** es un agente que recibe **un titular económico, una promesa de inversión, una URL o una publicación sospechosa** y devuelve un **análisis estructurado con contexto, riesgo y evidencia**, citando fuentes financieras rigurosas.
 
 > ⚖️ **Principio rector:** el agente **nunca opina** ni da consejos de inversión. Cita fuentes, identifica banderas rojas de estafa, y avisa al usuario cuando algo huele a Ponzi o pseudo-trader.
 
@@ -172,7 +172,7 @@ Hackaton-Fake-News/
 │   └── prompts/                # _agent_prompt.py (fuente única) + claim_parser/linguistic/verdict .es
 │
 ├── frontend/
-│   ├── VeritasAgent.html       # 🌟 landing de demo (GET /, ADR-0014): pasos en vivo + clip 📎
+│   ├── BlacklightExpose.html       # 🌟 landing de demo (GET /, ADR-0014): pasos en vivo + clip 📎
 │   └── app.py                  # chat Streamlit alternativo (FRONTEND_MODE=api|direct)
 │
 ├── scripts/
@@ -272,7 +272,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 | Endpoint | Qué hace |
 |---|---|
-| `GET /` | **Landing de demo** (`VeritasAgent.html`, ADR-0014): chips de ejemplos, pasos del pipeline animados, early-exit ⚡ y veredicto con colores |
+| `GET /` | **Landing de demo** (`BlacklightExpose.html`, ADR-0014): chips de ejemplos, pasos del pipeline animados, early-exit ⚡ y veredicto con colores |
 | `POST /analizar` | Análisis **reactivo**: el LLM decide qué tools usar. Acepta `session_id` opcional para conversación continua |
 | `POST /analizar/multipaso` | Pipeline **determinista** [0]..[7]: devuelve `etiqueta`, `confianza`, `pasos_ejecutados`, evidencias y `cacheado` (early-exit <2 s si el claim ya fue verificado). Acepta opcionalmente una **captura de pantalla** (`imagen_base64`, PNG/JPEG/WebP ≤4 MB): el paso [V] la transcribe con Gemini Vision (ADR-0013) |
 | `POST /scrape` | Extrae una URL como markdown limpio vía Bright Data MCP |
@@ -334,7 +334,7 @@ El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 
 ## ⚠️ Limitaciones y uso responsable
 
-- VeritasAgent es una **herramienta de apoyo**, **no es asesor financiero**.
+- Blacklight Expose es una **herramienta de apoyo**, **no es asesor financiero**.
 - Los análisis incluyen riesgo / banderas rojas pero **no dictan decisiones de inversión**.
 - La calidad depende de las fuentes disponibles; si no hay cobertura rigurosa, el agente lo dice claramente.
 - Para promesas de inversión en redes sociales, ante cualquier duda → **consulta a un asesor regulado**.

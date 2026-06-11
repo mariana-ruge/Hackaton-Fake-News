@@ -35,7 +35,7 @@ Se añade un paso **[V] Visión** previo al pipeline, con estas elecciones:
    si no hay ni texto ni extracción, devuelve "Sin evidencia suficiente".
 5. **Solo el endpoint multipaso** (el reactivo `/analizar` queda texto-only
    por ahora).
-6. Frontend (`VeritasAgent.html`): el clip 📎 abre selector de archivo,
+6. Frontend (`BlacklightExpose.html`): el clip 📎 abre selector de archivo,
    valida tipo/tamaño, muestra chip con miniatura y ✕, y la lista de pasos
    muestra `[V] Lectura de la imagen` cuando hay adjunto.
 
@@ -72,5 +72,5 @@ Se añade un paso **[V] Visión** previo al pipeline, con estas elecciones:
 - `agent/tools/vision.py` — la tool (whitelist, límite, prompt JSON estructurado).
 - `agent/pipeline.py` — paso [V], `entrada_efectiva`, merge de señales visuales.
 - `main.py` — `NewsQuery.imagen_base64/imagen_mime`, `_decode_imagen` (HTTP 400).
-- `frontend/VeritasAgent.html` — clip funcional + chip de preview + paso [V] en la UI.
+- `frontend/BlacklightExpose.html` — clip funcional + chip de preview + paso [V] en la UI.
 - Conversación previa: evaluación "¿puede aceptar imágenes?" (estimación 3-4 h).

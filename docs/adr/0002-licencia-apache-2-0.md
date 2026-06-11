@@ -13,7 +13,7 @@ Las dos opciones razonables para un proyecto OSS son **MIT** y **Apache 2.0**. P
 
 ## Decisión
 
-Distribuimos VeritasAgent bajo **Apache License 2.0**.
+Distribuimos Blacklight Expose bajo **Apache License 2.0**.
 
 ## Consecuencias
 

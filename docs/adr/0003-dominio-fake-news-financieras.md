@@ -18,7 +18,7 @@ Esto creaba una disonancia: el README hablaba de fake news genéricas pero el ag
 
 ## Decisión
 
-Restringimos VeritasAgent al dominio **fake news financieras**, con tres sub-áreas:
+Restringimos Blacklight Expose al dominio **fake news financieras**, con tres sub-áreas:
 
 1. **Desinformación económica / mercado** (titulares alarmistas, rumores de bolsa).
 2. **Prevención de fraudes de inversión** (Ponzi, pirámides, pseudo-traders).

@@ -1,5 +1,5 @@
 """
-Frontend tipo chat para VeritasAgent.
+Frontend tipo chat para Blacklight Expose.
 
 Dos modos de ejecución, seleccionables con la variable FRONTEND_MODE:
   - "api"    (default): llama a FastAPI en API_URL  → uvicorn main:app
@@ -70,8 +70,8 @@ def _run_agent_direct(text: str, session_id: str) -> str:
 
 
 st.set_page_config(
-    page_title="VeritasAgent",
-    page_icon="VA",
+    page_title="Blacklight Expose",
+    page_icon="🔦",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
@@ -80,16 +80,16 @@ st.markdown(
     """
     <style>
     :root {
-        --veritas-bg: #f7f8fb;
-        --veritas-panel: #ffffff;
-        --veritas-border: #dde3ee;
-        --veritas-text: #172033;
-        --veritas-muted: #68758a;
+        --blacklight-bg: #f7f8fb;
+        --blacklight-panel: #ffffff;
+        --blacklight-border: #dde3ee;
+        --blacklight-text: #172033;
+        --blacklight-muted: #68758a;
     }
 
     .stApp {
-        background: var(--veritas-bg);
-        color: var(--veritas-text);
+        background: var(--blacklight-bg);
+        color: var(--blacklight-text);
     }
 
     .block-container {
@@ -99,15 +99,15 @@ st.markdown(
     }
 
     .hero {
-        background: var(--veritas-panel);
-        border: 1px solid var(--veritas-border);
+        background: var(--blacklight-panel);
+        border: 1px solid var(--blacklight-border);
         border-radius: 8px;
         padding: 1.1rem 1.25rem;
         margin-bottom: 1rem;
     }
 
     .hero-title {
-        color: var(--veritas-text);
+        color: var(--blacklight-text);
         font-size: 1.65rem;
         line-height: 1.2;
         font-weight: 720;
@@ -116,7 +116,7 @@ st.markdown(
     }
 
     .hero-subtitle {
-        color: var(--veritas-muted);
+        color: var(--blacklight-muted);
         font-size: .98rem;
         margin: 0;
     }
@@ -129,9 +129,9 @@ st.markdown(
     }
 
     .status-chip {
-        border: 1px solid var(--veritas-border);
+        border: 1px solid var(--blacklight-border);
         background: #fbfcff;
-        color: var(--veritas-muted);
+        color: var(--blacklight-muted);
         border-radius: 999px;
         padding: .25rem .62rem;
         font-size: .82rem;
@@ -149,7 +149,7 @@ st.markdown(
     }
 
     .small-note {
-        color: var(--veritas-muted);
+        color: var(--blacklight-muted);
         font-size: .82rem;
         margin-top: .35rem;
     }
@@ -212,7 +212,7 @@ project_id = health.get("project_id", "sin proyecto")
 st.markdown(
     f"""
     <section class="hero">
-        <h1 class="hero-title">VeritasAgent</h1>
+        <h1 class="hero-title">Blacklight Expose</h1>
         <p class="hero-subtitle">Chat de verificación para noticias financieras, rumores de mercado y promesas de inversión.</p>
         <div class="status-row">
             <span class="status-chip">API: {status}</span>

@@ -1,4 +1,4 @@
-# VeritasAgent — Plan de Implementación (paso a paso)
+# Blacklight Expose — Plan de Implementación (paso a paso)
 
 > Hoja de ruta operativa: qué construir, en qué orden, con qué criterio de "hecho".
 > Las decisiones de arquitectura viven en `PLAN.md`. Aquí solo se **ejecuta**.
@@ -47,7 +47,7 @@
   gcloud auth application-default set-quota-project hackaton-498600
   ```
 - [ ] **0.5.5** Región por defecto (`us-central1`).
-- [ ] **0.5.6** Service Account `veritas-agent` (Vertex AI User + Secret Manager Accessor).
+- [ ] **0.5.6** Service Account `blacklight-agent` (Vertex AI User + Secret Manager Accessor).
 - [ ] **0.5.7** Rellenar `.env` (`GOOGLE_CLOUD_PROJECT=hackaton-498600`).
 
 ---
@@ -56,7 +56,7 @@
 - [x] **1.1** `agent/tools/embeddings.py` — embeddings 768 dims agnósticos a Vertex/API key (ver ADR-0006), cache LRU + retries.
 - [x] **1.2** `scraper.py` — Bright Data Scraping Browser (Playwright + CDP). **Queda como respaldo offline** desde la Fase 8.2.
 - [x] **1.3** `agent/mcp/local_cache.py` — caché local (puente histórico, no se usa en producción tras 8.1.7).
-- [x] **1.4** `scripts/setup_firestore.py` — verifica permisos + escribe `config/veritas_settings`.
+- [x] **1.4** `scripts/setup_firestore.py` — verifica permisos + escribe `config/blacklight_settings`.
 - [x] **1.5** `scripts/setup_elastic_index.py` — **REAL** (implementado en 8.1.3): `dense_vector(768)`, idempotente, soporta `--recreate`.
 - [x] **1.6** `scripts/seed_factcheckers.py` — **REAL** (implementado en 8.5.5): escribe `agent/data/factcheckers.json` con 21 dominios curados.
 - [x] **1.7** `agent/mcp/elastic_client.py` — **CREADO** (8.1.7): conexión + `hybrid_search` (kNN + BM25) + `triage` con umbrales + `index_verification` + `get_by_hash`.
@@ -78,7 +78,7 @@
 - [x] **2.7a** Prompt `prompts/verdict.es.txt`.
 - [x] **2.7b** `tools/verdict.py` — **REAL** (8.5.2): emite veredicto estructurado + mapeos `etiqueta→categoría` y `confianza→nivel`.
 - [x] **2.8** `tools/persistence.py` — **REAL** (8.1.6): indexa el veredicto en Elastic con embedding (paso [7] del pipeline).
-- [x] **2.9** `tools/vision.py` — **NUEVO** (ADR-0013): paso [V] — Gemini Vision transcribe capturas de pantalla (PNG/JPEG/WebP ≤4 MB) y extrae claim + señales visuales; el claim alimenta el pipeline normal. Las señales entran como banderas rojas `visual:`. Expuesto en `/analizar/multipaso` (`imagen_base64`) y en el clip 📎 de `VeritasAgent.html`.
+- [x] **2.9** `tools/vision.py` — **NUEVO** (ADR-0013): paso [V] — Gemini Vision transcribe capturas de pantalla (PNG/JPEG/WebP ≤4 MB) y extrae claim + señales visuales; el claim alimenta el pipeline normal. Las señales entran como banderas rojas `visual:`. Expuesto en `/analizar/multipaso` (`imagen_base64`) y en el clip 📎 de `BlacklightExpose.html`.
 
 ---
 
@@ -112,7 +112,7 @@
 - [x] **5.2** Estilos custom + chips de estado (Vertex AI, Firestore, proyecto).
 - [x] **5.3** Persistencia visual del análisis y `firestore_doc_id`.
 - [x] **5.3b** Modo dual del frontend (`FRONTEND_MODE=api|direct`): "direct" usa el runner ADK sin levantar FastAPI — útil para demos rápidas. ✨ Mariana, rama `Implement-ADK`.
-- [x] **5.5** **UI de demo `frontend/VeritasAgent.html`** (a partir del diseño generado con Claude): hero + chips con ejemplos de fraudes, tarjetas "cómo funciona", barra de entrada (sin selector de modelo ni hints de teclado), **pasos del pipeline animados en vivo, badge de early-exit ⚡ y veredicto con colores/score/banderas rojas/evidencias** — conectada al endpoint real `/analizar/multipaso`. Servida same-origin en `GET /` desde FastAPI. Cubre la visualización multipaso; el 5.4 (versión Streamlit) queda como opcional.
+- [x] **5.5** **UI de demo `frontend/BlacklightExpose.html`** (a partir del diseño generado con Claude): hero + chips con ejemplos de fraudes, tarjetas "cómo funciona", barra de entrada (sin selector de modelo ni hints de teclado), **pasos del pipeline animados en vivo, badge de early-exit ⚡ y veredicto con colores/score/banderas rojas/evidencias** — conectada al endpoint real `/analizar/multipaso`. Servida same-origin en `GET /` desde FastAPI. Cubre la visualización multipaso; el 5.4 (versión Streamlit) queda como opcional.
 - **5.4** Mostrar el pipeline multipaso en la UI → ✅ **cubierto por 5.5** (landing HTML, ADR-0014). Esta versión Streamlit queda **opcional**:
   - [ ] **5.4.1** (opcional) Toggle "Modo: reactivo / multipaso" en Streamlit.
   - [ ] **5.4.2** (opcional) Render del desglose en Streamlit.

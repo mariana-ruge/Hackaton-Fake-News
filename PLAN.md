@@ -1,4 +1,4 @@
-# VeritasAgent — Plan Maestro
+# Blacklight Expose — Plan Maestro
 
 > Agente multi-paso para verificación de noticias financieras con triage por similitud semántica, evidencia rastreable y veredicto con nivel de confianza.
 > Construido con **Gemini + Google Cloud (ADK + Agent Engine)**, track partner 🟢 **Elastic MCP** + Bright Data MCP y Arize Phoenix MCP.
@@ -12,7 +12,7 @@
 
 ## 1. Resumen ejecutivo
 
-VeritasAgent recibe una **URL, titular o afirmación (claim)** y devuelve un **veredicto de credibilidad (0–100) + categoría + evidencia con enlaces**. No es un chatbot: ejecuta un flujo determinista de pasos, decide cuándo profundizar y mantiene al usuario en control (human-in-the-loop).
+Blacklight Expose recibe una **URL, titular o afirmación (claim)** y devuelve un **veredicto de credibilidad (0–100) + categoría + evidencia con enlaces**. No es un chatbot: ejecuta un flujo determinista de pasos, decide cuándo profundizar y mantiene al usuario en control (human-in-the-loop).
 
 La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic**: antes de gastar scraping y razonamiento, busca por similitud semántica si el claim **ya fue verificado** y, si hay coincidencia fuerte, hace **early-exit** devolviendo el resultado cacheado.
 
@@ -20,6 +20,7 @@ La pieza diferenciadora es una **fase [0] de pre-análisis (triage) con Elastic*
 
 | Decisión | Elección | Estado |
 |---|---|---|
+| Nombre del producto | **Blacklight Expose** 🔦 — la luz ultravioleta que revela el fraude (antes "VeritasAgent") | ✅ renombrado 2026-06-11 |
 | Idioma | **Español** (bilingüe ES/EN planificado) | 🟡 hoy prompts y pipeline operan en `es` |
 | Frontend | **Streamlit** (hospedado en Cloud Run) | ✅ en local · 🟡 Cloud Run pendiente |
 | Orquestación | **Híbrido: ADK (lógica) + Vertex AI Agent Engine (despliegue gestionado)** | ✅ `agent/engine_app.py` listo · 🟡 despliegue pendiente |
@@ -205,7 +206,7 @@ Indexa el caso completo (claim, embedding, veredicto, evidencia, fecha, idioma) 
 > - Se añadieron piezas no previstas: `agent/pipeline.py` (orquestador multipaso),
 >   `agent/llm_client.py`, `agent/genai_client.py` (auth dual),
 >   `agent/tools/vision.py` (capturas de pantalla, ADR-0013),
->   `frontend/VeritasAgent.html` (landing de demo en `GET /`, ADR-0014),
+>   `frontend/BlacklightExpose.html` (landing de demo en `GET /`, ADR-0014),
 >   `agent/data/factcheckers.json`, `docs/` (architecture + 14 ADRs),
 >   los runners locales `run_adk.py`/`agent_garden.py` y `scraper.py` (respaldo legado).
 > - Los prompts existen solo en `es` por ahora (`.en` planificado).

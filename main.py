@@ -1,5 +1,5 @@
 """
-VeritasAgent — API del agente verificador de noticias financieras.
+Blacklight Expose — API del agente verificador de noticias financieras.
 
 Track partner del reto: 🟢 Elastic MCP
 MCPs adicionales:        Bright Data MCP (scraping/búsqueda)
@@ -45,7 +45,7 @@ load_dotenv(override=True)  # carga el .env (sus valores tienen prioridad)
 # Logging
 # ──────────────────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("veritas")
+logger = logging.getLogger("blacklight")
 logging.getLogger("asyncio").setLevel(logging.ERROR)
 
 
@@ -345,7 +345,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="VeritasAgent API",
+    title="Blacklight Expose API",
     description=(
         "Agente verificador de noticias financieras (Google ADK + Vertex AI). "
         "Detecta desinformación económica, estafas Ponzi y promesas de inversión sospechosas."
@@ -686,15 +686,15 @@ async def scrape_url(request: ScrapeRequest):
 
 @app.get("/", include_in_schema=False)
 def landing():
-    """Sirve la UI de demo (frontend/VeritasAgent.html).
+    """Sirve la UI de demo (frontend/BlacklightExpose.html).
 
     Servida same-origin para que su `fetch` a /analizar/multipaso funcione
     sin CORS. El diseño implementa: hero + chips de ejemplos, pasos del
     pipeline animados, badge de early-exit y veredicto con colores.
     """
-    html = Path(__file__).resolve().parent / "frontend" / "VeritasAgent.html"
+    html = Path(__file__).resolve().parent / "frontend" / "BlacklightExpose.html"
     if not html.exists():
-        raise HTTPException(status_code=404, detail="frontend/VeritasAgent.html no encontrado")
+        raise HTTPException(status_code=404, detail="frontend/BlacklightExpose.html no encontrado")
     return FileResponse(html, media_type="text/html")
 
 
