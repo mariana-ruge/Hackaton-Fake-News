@@ -28,12 +28,13 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 load_dotenv(override=True)  # carga el .env (sus valores tienen prioridad)
@@ -640,6 +641,20 @@ async def scrape_url(request: ScrapeRequest):
             status_code=500,
             detail=f"Error al obtener la URL con Bright Data MCP: {e}",
         )
+
+
+@app.get("/", include_in_schema=False)
+def landing():
+    """Sirve la UI de demo (frontend/VeritasAgent.html).
+
+    Servida same-origin para que su `fetch` a /analizar/multipaso funcione
+    sin CORS. El diseño implementa: hero + chips de ejemplos, pasos del
+    pipeline animados, badge de early-exit y veredicto con colores.
+    """
+    html = Path(__file__).resolve().parent / "frontend" / "VeritasAgent.html"
+    if not html.exists():
+        raise HTTPException(status_code=404, detail="frontend/VeritasAgent.html no encontrado")
+    return FileResponse(html, media_type="text/html")
 
 
 @app.get("/health", summary="Verifica el estado del servidor y la telemetría")
