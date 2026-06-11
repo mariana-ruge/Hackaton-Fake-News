@@ -1,4 +1,4 @@
-"""Orquestador determinista del flujo multi-paso de VeritasAgent.
+"""Orquestador determinista del flujo multi-paso de Blacklight Expose.
 
   [0] Triage      (Elastic MCP)                 →  early-exit si score >= 0.92
   [1] Extractor   (texto o URL → contenido)

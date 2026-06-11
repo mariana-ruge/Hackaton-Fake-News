@@ -1,6 +1,6 @@
 """Cliente Gemini agnóstico al backend.
 
-Soporta dos modos de autenticación (ambos válidos para VeritasAgent):
+Soporta dos modos de autenticación (ambos válidos para Blacklight Expose):
 
   ┌────────────────────────────┬─────────────────────────────────────────────┐
   │ Modo A · Vertex AI (ADC)   │ Modo B · API key directa (AI Studio)        │

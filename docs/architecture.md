@@ -1,4 +1,4 @@
-# Arquitectura — VeritasAgent
+# Arquitectura — Blacklight Expose
 
 > Vista actual del sistema, con diagramas mermaid que se renderizan automáticamente en GitHub.
 > Para entender **por qué** se hizo así, leer los [ADRs](adr/).
@@ -16,7 +16,7 @@ flowchart TB
     subgraph Backend["Backend · Cloud Run"]
         API["⚡ FastAPI<br/>main.py"]
         subgraph Endpoints["Endpoints"]
-            E0["/ (landing demo<br/>VeritasAgent.html)"]
+            E0["/ (landing demo<br/>BlacklightExpose.html)"]
             E1["/analizar<br/>(reactivo)"]
             E2["/analizar/multipaso<br/>(determinista + imagen)"]
             E3["/scrape"]
@@ -302,7 +302,7 @@ Detalles completos en `.env.example`. Aquí solo los grupos:
 
 | Método | Ruta | Modo | Cuándo usar |
 |---|---|---|---|
-| GET | `/` | Landing demo (`VeritasAgent.html`, ADR-0014) | UI principal: pasos en vivo, early-exit ⚡, clip 📎 |
+| GET | `/` | Landing demo (`BlacklightExpose.html`, ADR-0014) | UI principal: pasos en vivo, early-exit ⚡, clip 📎 |
 | POST | `/analizar` | Reactivo (LlmAgent decide) | Análisis exploratorio, preguntas libres. `session_id` opcional |
 | POST | `/analizar/multipaso` | Determinista (pipeline.py) | Demo del reto, early-exit garantizado. Acepta `imagen_base64` (PNG/JPEG/WebP ≤4 MB, ADR-0013) |
 | POST | `/scrape` | Bright Data MCP | Extracción de URL como markdown |

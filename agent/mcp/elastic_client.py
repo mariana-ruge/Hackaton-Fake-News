@@ -1,4 +1,4 @@
-"""Cliente Elasticsearch reutilizable para VeritasAgent.
+"""Cliente Elasticsearch reutilizable para Blacklight Expose.
 
 Encapsula:
 - conexión (Cloud ID o URL + API key),

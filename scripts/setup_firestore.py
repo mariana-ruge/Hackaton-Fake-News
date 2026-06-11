@@ -1,4 +1,4 @@
-"""Inicializa Firestore para VeritasAgent.
+"""Inicializa Firestore para Blacklight Expose.
 
 Uso:
     python scripts/setup_firestore.py
@@ -24,11 +24,11 @@ from google.cloud import firestore
 
 
 CONFIG_COLLECTION = "config"
-CONFIG_DOC_ID = "veritas_settings"
+CONFIG_DOC_ID = "blacklight_settings"
 CLAIMS_COLLECTION = "verified_claims"
 TEST_DOC_ID = "test_setup"
 
-VERITAS_SETTINGS = {
+BLACKLIGHT_SETTINGS = {
     "similarity_threshold_exit": 0.92,
     "similarity_threshold_evidence": 0.75,
     "default_ttl_days": 30,
@@ -66,7 +66,7 @@ def _connect(project_id: str) -> firestore.Client:
 
 def _write_settings(client: firestore.Client) -> None:
     ref = client.collection(CONFIG_COLLECTION).document(CONFIG_DOC_ID)
-    payload = dict(VERITAS_SETTINGS)
+    payload = dict(BLACKLIGHT_SETTINGS)
     payload["updated_at"] = firestore.SERVER_TIMESTAMP
     ref.set(payload, merge=True)
 

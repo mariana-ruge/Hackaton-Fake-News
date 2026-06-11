@@ -1,4 +1,4 @@
-"""Prompt principal del agente VeritasAgent.
+"""Prompt principal del agente Blacklight Expose.
 
 Fuente única de verdad compartida entre ``main.py`` (InMemoryRunner / FastAPI)
 y ``agent/engine_app.py`` (Vertex AI Agent Engine / AdkApp).

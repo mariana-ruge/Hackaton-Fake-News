@@ -27,7 +27,7 @@ Conviven **dos frontends con roles distintos**:
 
 | Frontend | Rol | Cómo se sirve |
 |---|---|---|
-| `frontend/VeritasAgent.html` | **UI principal de la demo**: hero + chips de ejemplos, pasos [V]/[0]..[7] animados, early-exit ⚡, veredicto con colores, clip 📎 multimodal (ADR-0013) | **Same-origin desde FastAPI** (`GET /`) — viaja en el mismo contenedor que el backend, sin CORS y sin servicio extra |
+| `frontend/BlacklightExpose.html` | **UI principal de la demo**: hero + chips de ejemplos, pasos [V]/[0]..[7] animados, early-exit ⚡, veredicto con colores, clip 📎 multimodal (ADR-0013) | **Same-origin desde FastAPI** (`GET /`) — viaja en el mismo contenedor que el backend, sin CORS y sin servicio extra |
 | `frontend/app.py` (Streamlit) | Cliente de chat alternativo (endpoint reactivo), con modo `api\|direct` de Mariana | Local o servicio Cloud Run propio — **opcional** |
 
 Consecuencia operativa clave: **desplegar Streamlit deja de ser bloqueante**
@@ -62,7 +62,7 @@ para la demo. La URL pública del backend ya incluye la UI completa.
 
 ## Referencias
 
-- `frontend/VeritasAgent.html` — la landing (345+ líneas, archivo único).
+- `frontend/BlacklightExpose.html` — la landing (345+ líneas, archivo único).
 - `main.py::landing` — `GET /` con `FileResponse` same-origin.
 - `frontend/app.py` — cliente Streamlit con `FRONTEND_MODE=api|direct`.
 - ADR-0013 — el clip multimodal vive en esta landing.
