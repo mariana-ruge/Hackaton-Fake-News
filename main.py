@@ -25,6 +25,8 @@ Variables de entorno requeridas (ver .env.example):
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -353,11 +355,34 @@ app = FastAPI(
 )
 
 class NewsQuery(BaseModel):
-    texto_noticia: str
+    # Texto a verificar. Puede ir vacío si se adjunta una imagen.
+    texto_noticia: str = ""
     # Opcional: pasa el mismo session_id para mantener una conversación
     # continua con el agente. Si se omite, cada request usa una sesión
     # nueva y aislada (sin contaminación entre usuarios).
     session_id: str | None = None
+    # Opcional: captura de pantalla en base64 (acepta dataURL o base64 puro).
+    # PNG / JPEG / WebP, máx. 4 MB. Gemini Vision extrae el claim ([V]).
+    imagen_base64: str | None = None
+    imagen_mime: str | None = None
+
+
+def _decode_imagen(query: "NewsQuery") -> tuple[bytes | None, str | None]:
+    """Decodifica la imagen del request. Lanza HTTP 400 si viene malformada."""
+    if not query.imagen_base64:
+        return None, None
+    raw = query.imagen_base64.strip()
+    mime = (query.imagen_mime or "").strip().lower()
+    # Tolerancia a dataURL: "data:image/png;base64,AAAA…"
+    if raw.startswith("data:"):
+        header, _, raw = raw.partition(",")
+        if not mime and ";" in header:
+            mime = header[5:].split(";", 1)[0].strip().lower()
+    try:
+        imagen = base64.b64decode(raw, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="imagen_base64 no es base64 válido.")
+    return imagen, mime
 
 
 class ScrapeRequest(BaseModel):
@@ -547,9 +572,25 @@ async def analizar_noticia(query: NewsQuery):
 async def analizar_multipaso(query: NewsQuery):
     """Ejecuta el pipeline determinista de `agent/pipeline.py` y devuelve
     el desglose completo de pasos (ideal para la demo del reto).
+
+    Acepta opcionalmente una captura de pantalla (`imagen_base64` +
+    `imagen_mime`): el paso [V] la transcribe con Gemini Vision y el claim
+    extraído alimenta el pipeline normal.
     """
+    imagen, imagen_mime = _decode_imagen(query)
+    if not query.texto_noticia.strip() and imagen is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Envía texto_noticia, una imagen_base64, o ambos.",
+        )
     try:
-        resultado = await ejecutar_pipeline(query.texto_noticia, language="es")
+        resultado = await ejecutar_pipeline(
+            query.texto_noticia, language="es",
+            imagen=imagen, imagen_mime=imagen_mime,
+        )
+    except ValueError as exc:
+        # Imagen inválida (mime/tamaño) detectada por la tool de visión.
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Error en /analizar/multipaso")
         raise HTTPException(status_code=500, detail=str(exc))

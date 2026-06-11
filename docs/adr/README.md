@@ -85,6 +85,7 @@ La elección, en una frase si es posible.
 | [0010](0010-pipeline-determinista-vs-llm-reactivo.md) | Pipeline determinista coexistiendo con LlmAgent reactivo | Accepted | agente |
 | [0011](0011-acceso-mcp-desde-pipeline.md) | Acceso a MCPs desde el pipeline: SDK `mcp` directo con sesiones efímeras | Accepted | mcp, patrón |
 | [0012](0012-resolucion-merge-bright-canonica.md) | Resolución del merge: la arquitectura de `Bright` es la canónica | Accepted | gobernanza, git |
+| [0013](0013-entrada-multimodal-imagenes.md) | Entrada multimodal: capturas de pantalla vía Gemini Vision (paso [V]) | Accepted | api, multimodal |
 
 ---
 
