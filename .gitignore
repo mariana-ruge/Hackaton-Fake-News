@@ -52,3 +52,6 @@ desktop.ini
 data/local/
 tmp/
 .commit_msg.tmp
+
+# Config local de herramientas (preview launcher)
+.claude/
