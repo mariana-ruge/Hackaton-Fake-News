@@ -2,6 +2,8 @@
 
 # 🔦 Blacklight Expose
 
+🚀 Link de despliegue:  **[Ver demo en vivo](https://blacklight-expose-174087342537.us-central1.run.app)**
+
 ### La luz ultravioleta que revela el fraude: verificador de **noticias financieras** y detector de estafas de inversión
 
 **Powered by Gemini · Google ADK · Vertex AI · FastAPI · Streamlit · Arize Phoenix · Firestore · Bright Data**
@@ -326,9 +328,9 @@ El detalle por fases está en **[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)**.
 - [x] **Landing de demo** (`GET /`): pasos en vivo, early-exit ⚡, veredicto con colores (ADR-0014)
 - [x] **Entrada multimodal**: capturas de pantalla vía Gemini Vision, clip 📎 funcional (ADR-0013)
 - [x] Módulo **Agent Engine** (`agent/engine_app.py`) + script de deploy
-- [ ] Smoke test end-to-end con credenciales reales
-- [ ] Despliegue en Cloud Run + ejecutar deploy a Agent Engine
-- [ ] Demo + entrega Devpost
+- [x] Smoke test end-to-end con credenciales reales
+- [x] Despliegue en Cloud Run + ejecutar deploy a Agent Engine
+- [x] Demo + entrega Devpost
 
 ---
 
